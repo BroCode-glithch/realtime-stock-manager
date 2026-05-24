@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppReportsRouteImport } from './routes/_app/reports'
 import { Route as AppInventoryRouteImport } from './routes/_app/inventory'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppAlertsRouteImport } from './routes/_app/alerts'
@@ -29,6 +30,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AppReportsRoute = AppReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AppRoute,
 } as any)
 const AppInventoryRoute = AppInventoryRouteImport.update({
   id: '/inventory',
@@ -52,6 +58,7 @@ export interface FileRoutesByFullPath {
   '/alerts': typeof AppAlertsRoute
   '/dashboard': typeof AppDashboardRoute
   '/inventory': typeof AppInventoryRoute
+  '/reports': typeof AppReportsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/alerts': typeof AppAlertsRoute
   '/dashboard': typeof AppDashboardRoute
   '/inventory': typeof AppInventoryRoute
+  '/reports': typeof AppReportsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -68,12 +76,19 @@ export interface FileRoutesById {
   '/_app/alerts': typeof AppAlertsRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/inventory': typeof AppInventoryRoute
+  '/_app/reports': typeof AppReportsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/alerts' | '/dashboard' | '/inventory'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/alerts'
+    | '/dashboard'
+    | '/inventory'
+    | '/reports'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/alerts' | '/dashboard' | '/inventory'
+  to: '/' | '/login' | '/alerts' | '/dashboard' | '/inventory' | '/reports'
   id:
     | '__root__'
     | '/'
@@ -82,6 +97,7 @@ export interface FileRouteTypes {
     | '/_app/alerts'
     | '/_app/dashboard'
     | '/_app/inventory'
+    | '/_app/reports'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -113,6 +129,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/reports': {
+      id: '/_app/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AppReportsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/inventory': {
       id: '/_app/inventory'
       path: '/inventory'
@@ -141,12 +164,14 @@ interface AppRouteChildren {
   AppAlertsRoute: typeof AppAlertsRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppInventoryRoute: typeof AppInventoryRoute
+  AppReportsRoute: typeof AppReportsRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppAlertsRoute: AppAlertsRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppInventoryRoute: AppInventoryRoute,
+  AppReportsRoute: AppReportsRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
