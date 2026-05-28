@@ -22,8 +22,13 @@ const titles: Record<string, string> = {
 
 function AppLayout() {
   const tick = useStore((s) => s.tickSimulation);
+  const syncFromServer = useStore((s) => s.syncFromServer);
   const location = useLocation();
   const title = Object.entries(titles).find(([k]) => location.pathname.startsWith(k))?.[1] ?? "Inventory";
+
+  useEffect(() => {
+    void syncFromServer();
+  }, [syncFromServer]);
 
   useEffect(() => {
     const id = setInterval(() => tick(), 4000);

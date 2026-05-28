@@ -81,6 +81,7 @@ interface State {
   alerts: Alert[];
   demand: DemandPoint[];
   staticBaseline: { stockouts: number; excess: number };
+  syncFromServer: () => Promise<void>;
   login: (email: string, role: Role) => void;
   logout: () => void;
   addProduct: (p: Omit<Product, "id">) => void;
@@ -90,6 +91,26 @@ interface State {
   markAlertsRead: () => void;
   tickSimulation: () => void;
   resetSeed: () => void;
+}
+
+type Snapshot = Pick<State, "products" | "transactions" | "alerts" | "demand" | "staticBaseline">;
+
+async function postSnapshot(path: string, body?: unknown): Promise<Snapshot | null> {
+  try {
+    const response = await fetch(path, {
+      method: "POST",
+      headers: body ? { "content-type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as Snapshot;
+  } catch {
+    return null;
+  }
+}
+
+function mergeSnapshot(setState: (partial: Partial<State>) => void, snapshot: Snapshot) {
+  setState(snapshot);
 }
 
 function evalAlerts(products: Product[], demand: DemandPoint[]): Alert[] {
@@ -133,6 +154,17 @@ export const useStore = create<State>()(
       demand: generateDemandHistory(),
       staticBaseline: { stockouts: 18, excess: 24 },
 
+      syncFromServer: async () => {
+        try {
+          const response = await fetch("/api/state");
+          if (!response.ok) return;
+          const snapshot = (await response.json()) as Snapshot;
+          mergeSnapshot(set, snapshot);
+        } catch {
+          // Keep the local prototype working when the Node service is unavailable.
+        }
+      },
+
       login: (email, role) => {
         const name = email.split("@")[0].replace(/[._]/g, " ");
         set({
@@ -147,71 +179,126 @@ export const useStore = create<State>()(
       logout: () => set({ user: null }),
 
       addProduct: (p) => {
-        const product: Product = { ...p, id: "p-" + Math.random().toString(36).slice(2, 8) };
-        set((s) => ({ products: [...s.products, product] }));
-        get().tickSimulation();
+        void (async () => {
+          const snapshot = await postSnapshot("/api/products", p);
+          if (snapshot) {
+            mergeSnapshot(set, snapshot);
+            return;
+          }
+
+          const product: Product = { ...p, id: "p-" + Math.random().toString(36).slice(2, 8) };
+          set((s) => ({ products: [...s.products, product] }));
+          get().tickSimulation();
+        })();
       },
       updateProduct: (id, patch) =>
-        set((s) => ({ products: s.products.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
+        void (async () => {
+          const snapshot = await postSnapshot(`/api/products/${id}`, patch);
+          if (snapshot) {
+            mergeSnapshot(set, snapshot);
+            return;
+          }
+
+          set((s) => ({ products: s.products.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
+        })(),
       deleteProduct: (id) =>
-        set((s) => ({ products: s.products.filter((p) => p.id !== id) })),
+        void (async () => {
+          const snapshot = await postSnapshot(`/api/products/${id}/delete`);
+          if (snapshot) {
+            mergeSnapshot(set, snapshot);
+            return;
+          }
+
+          set((s) => ({ products: s.products.filter((p) => p.id !== id) }));
+        })(),
 
       recordTransaction: (productId, qty, type) => {
-        const product = get().products.find((p) => p.id === productId);
-        if (!product) return;
-        const delta = type === "out" ? -Math.abs(qty) : Math.abs(qty);
-        const tx: Transaction = {
-          id: "t-" + Math.random().toString(36).slice(2, 8),
-          productId,
-          productName: product.name,
-          userId: get().user?.id ?? "system",
-          quantityChanged: delta,
-          type,
-          timestamp: Date.now(),
-        };
-        set((s) => ({
-          products: s.products.map((p) =>
-            p.id === productId ? { ...p, quantity: Math.max(0, p.quantity + delta) } : p
-          ),
-          transactions: [tx, ...s.transactions].slice(0, 200),
-        }));
-        get().tickSimulation();
+        void (async () => {
+          const snapshot = await postSnapshot("/api/transactions", { productId, qty, type });
+          if (snapshot) {
+            mergeSnapshot(set, snapshot);
+            return;
+          }
+
+          const product = get().products.find((p) => p.id === productId);
+          if (!product) return;
+          const delta = type === "out" ? -Math.abs(qty) : Math.abs(qty);
+          const tx: Transaction = {
+            id: "t-" + Math.random().toString(36).slice(2, 8),
+            productId,
+            productName: product.name,
+            userId: get().user?.id ?? "system",
+            quantityChanged: delta,
+            type,
+            timestamp: Date.now(),
+          };
+          set((s) => ({
+            products: s.products.map((p) =>
+              p.id === productId ? { ...p, quantity: Math.max(0, p.quantity + delta) } : p
+            ),
+            transactions: [tx, ...s.transactions].slice(0, 200),
+          }));
+          get().tickSimulation();
+        })();
       },
 
       markAlertsRead: () =>
-        set((s) => ({ alerts: s.alerts.map((a) => ({ ...a, read: true })) })),
+        void (async () => {
+          const snapshot = await postSnapshot("/api/alerts/read");
+          if (snapshot) {
+            mergeSnapshot(set, snapshot);
+            return;
+          }
+
+          set((s) => ({ alerts: s.alerts.map((a) => ({ ...a, read: true })) }));
+        })(),
 
       tickSimulation: () => {
-        const { products, demand } = get();
-        // Simulate a small demand pulse: random product loses 1-3 units
-        const target = products[Math.floor(Math.random() * products.length)];
-        if (!target) return;
-        const consumed = Math.min(target.quantity, Math.floor(Math.random() * 3) + 1);
-        const today = new Date();
-        const day = `${today.getMonth() + 1}/${today.getDate()}`;
-        const newDemand = [...demand];
-        const idx = newDemand.findIndex((d) => d.productId === target.id && d.day === day);
-        if (idx >= 0) newDemand[idx] = { ...newDemand[idx], demand: newDemand[idx].demand + consumed };
-        else newDemand.push({ productId: target.id, day, demand: consumed });
+        void (async () => {
+          const snapshot = await postSnapshot("/api/tick");
+          if (snapshot) {
+            mergeSnapshot(set, snapshot);
+            return;
+          }
 
-        const updatedProducts = products.map((p) =>
-          p.id === target.id ? { ...p, quantity: Math.max(0, p.quantity - consumed) } : p
-        );
-        const newAlerts = evalAlerts(updatedProducts, newDemand);
-        set((s) => ({
-          products: updatedProducts,
-          demand: newDemand.slice(-500),
-          alerts: [...newAlerts, ...s.alerts].slice(0, 100),
-        }));
+          const { products, demand } = get();
+          const target = products[Math.floor(Math.random() * products.length)];
+          if (!target) return;
+          const consumed = Math.min(target.quantity, Math.floor(Math.random() * 3) + 1);
+          const today = new Date();
+          const day = `${today.getMonth() + 1}/${today.getDate()}`;
+          const newDemand = [...demand];
+          const idx = newDemand.findIndex((d) => d.productId === target.id && d.day === day);
+          if (idx >= 0) newDemand[idx] = { ...newDemand[idx], demand: newDemand[idx].demand + consumed };
+          else newDemand.push({ productId: target.id, day, demand: consumed });
+
+          const updatedProducts = products.map((p) =>
+            p.id === target.id ? { ...p, quantity: Math.max(0, p.quantity - consumed) } : p
+          );
+          const newAlerts = evalAlerts(updatedProducts, newDemand);
+          set((s) => ({
+            products: updatedProducts,
+            demand: newDemand.slice(-500),
+            alerts: [...newAlerts, ...s.alerts].slice(0, 100),
+          }));
+        })();
       },
 
       resetSeed: () =>
-        set({
-          products: seedProducts,
-          transactions: [],
-          alerts: [],
-          demand: generateDemandHistory(),
-        }),
+        void (async () => {
+          const snapshot = await postSnapshot("/api/reset");
+          if (snapshot) {
+            mergeSnapshot(set, snapshot);
+            return;
+          }
+
+          set({
+            products: seedProducts,
+            transactions: [],
+            alerts: [],
+            demand: generateDemandHistory(),
+          });
+        })(),
     }),
     { name: "inv-store-v1" }
   )
