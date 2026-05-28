@@ -81,6 +81,10 @@ interface State {
   alerts: Alert[];
   demand: DemandPoint[];
   staticBaseline: { stockouts: number; excess: number };
+  simRunning: boolean;
+  simIntervalMs: number;
+  setSimRunning: (v: boolean) => void;
+  setSimIntervalMs: (ms: number) => void;
   syncFromServer: () => Promise<void>;
   login: (email: string, role: Role) => void;
   logout: () => void;
@@ -90,8 +94,10 @@ interface State {
   recordTransaction: (productId: string, qty: number, type: Transaction["type"]) => void;
   markAlertsRead: () => void;
   tickSimulation: () => void;
+  bulkImport: (rows: Omit<Product, "id">[]) => void;
   resetSeed: () => void;
 }
+
 
 type Snapshot = Pick<State, "products" | "transactions" | "alerts" | "demand" | "staticBaseline">;
 
@@ -153,6 +159,10 @@ export const useStore = create<State>()(
       alerts: [],
       demand: generateDemandHistory(),
       staticBaseline: { stockouts: 18, excess: 24 },
+      simRunning: true,
+      simIntervalMs: 4000,
+      setSimRunning: (v) => set({ simRunning: v }),
+      setSimIntervalMs: (ms) => set({ simIntervalMs: Math.max(500, ms) }),
 
       syncFromServer: async () => {
         try {
@@ -283,6 +293,18 @@ export const useStore = create<State>()(
           }));
         })();
       },
+
+      bulkImport: (rows) => {
+        const newProducts: Product[] = rows.map((r) => ({
+          ...r,
+          id: "p-" + Math.random().toString(36).slice(2, 8),
+        }));
+        set((s) => ({
+          products: [...s.products, ...newProducts],
+          alerts: [...evalAlerts([...s.products, ...newProducts], s.demand), ...s.alerts].slice(0, 100),
+        }));
+      },
+
 
       resetSeed: () =>
         void (async () => {
