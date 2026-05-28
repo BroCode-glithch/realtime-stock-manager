@@ -294,6 +294,18 @@ export const useStore = create<State>()(
         })();
       },
 
+      bulkImport: (rows) => {
+        const newProducts: Product[] = rows.map((r) => ({
+          ...r,
+          id: "p-" + Math.random().toString(36).slice(2, 8),
+        }));
+        set((s) => ({
+          products: [...s.products, ...newProducts],
+          alerts: [...evalAlerts([...s.products, ...newProducts], s.demand), ...s.alerts].slice(0, 100),
+        }));
+      },
+
+
       resetSeed: () =>
         void (async () => {
           const snapshot = await postSnapshot("/api/reset");
