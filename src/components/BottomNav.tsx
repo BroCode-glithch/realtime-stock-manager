@@ -15,7 +15,7 @@ export function BottomNav() {
   const unread = useStore((s) => s.alerts.filter((a) => !a.read).length);
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-50 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+    <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
       <ul className="mx-auto flex max-w-2xl items-stretch justify-around px-2">
         {items.map(({ to, label, icon: Icon }) => {
           const active = location.pathname.startsWith(to);
@@ -27,11 +27,7 @@ export function BottomNav() {
                   active ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <span
-                  className={`absolute -top-px h-0.5 w-8 rounded-full transition-all ${
-                    active ? "bg-primary" : "bg-transparent"
-                  }`}
-                />
+                <span className={`absolute -top-px h-0.5 w-8 rounded-full transition-all ${active ? "bg-primary" : "bg-transparent"}`} />
                 <span className="relative">
                   <Icon className="h-5 w-5" strokeWidth={active ? 2.4 : 1.8} />
                   {to === "/alerts" && unread > 0 && (

@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { Package, AlertTriangle, TrendingDown, DollarSign } from "lucide-react";
 import { useMemo } from "react";
+import { SimControls } from "@/components/SimControls";
 
 export const Route = createFileRoute("/_app/dashboard")({
   component: Dashboard,
@@ -29,22 +30,24 @@ function Dashboard() {
   }, [demand]);
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
+    <div className="space-y-5">
+      <SimControls />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard icon={<Package className="h-4 w-4" />} label="Total units" value={stats.totalUnits.toLocaleString()} accent="primary" />
         <StatCard icon={<DollarSign className="h-4 w-4" />} label="Stock value" value={`$${(stats.value / 1000).toFixed(1)}k`} accent="success" />
         <StatCard icon={<TrendingDown className="h-4 w-4" />} label="Low stock" value={String(stats.low)} accent="warning" />
         <StatCard icon={<AlertTriangle className="h-4 w-4" />} label="Active alerts" value={String(stats.activeAlerts)} accent="destructive" />
       </div>
 
-      <Card className="p-4">
+      <Card className="p-4 md:p-5">
         <div className="mb-3 flex items-baseline justify-between">
           <div>
             <h2 className="text-sm font-semibold">Demand trend</h2>
             <p className="text-xs text-muted-foreground">Last 14 days, all SKUs</p>
           </div>
         </div>
-        <div className="h-44">
+        <div className="h-48 md:h-64">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={trend} margin={{ top: 5, right: 8, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -60,16 +63,16 @@ function Dashboard() {
         </div>
       </Card>
 
-      <Card className="p-4">
+      <Card className="p-4 md:p-5">
         <div className="mb-3 flex items-baseline justify-between">
           <h2 className="text-sm font-semibold">Recent alerts</h2>
           <span className="text-xs text-muted-foreground">{alerts.length} total</span>
         </div>
         <div className="space-y-2">
-          {alerts.slice(0, 4).map((a) => (
+          {alerts.slice(0, 5).map((a) => (
             <div key={a.id} className="flex items-start gap-3 rounded-lg border border-border bg-secondary/40 p-3">
               <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
-                a.type === "overstock" ? "bg-warning" : "bg-destructive"
+                a.type === "overstock" ? "bg-warning" : a.type === "reorder" ? "bg-warning" : "bg-destructive"
               }`} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{a.productName}</p>
