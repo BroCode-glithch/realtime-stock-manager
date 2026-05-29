@@ -19,8 +19,11 @@ export interface Product {
   supplier: string;
   quantity: number;
   reorderLevel: number;
-  unitPrice: number;
+  unitPrice: number; // naira (₦)
+  color?: string;
+  code?: string;
 }
+
 
 export interface Transaction {
   id: string;
@@ -49,15 +52,36 @@ export interface DemandPoint {
 }
 
 const seedProducts: Product[] = [
-  { id: "p1", name: "Wireless Mouse", category: "Electronics", supplier: "TechCorp", quantity: 42, reorderLevel: 20, unitPrice: 24.99 },
-  { id: "p2", name: "USB-C Cable", category: "Electronics", supplier: "TechCorp", quantity: 8, reorderLevel: 30, unitPrice: 9.99 },
-  { id: "p3", name: "Mechanical Keyboard", category: "Electronics", supplier: "KeyMakers", quantity: 15, reorderLevel: 10, unitPrice: 89.0 },
-  { id: "p4", name: "Notebook A5", category: "Stationery", supplier: "PaperCo", quantity: 120, reorderLevel: 40, unitPrice: 4.5 },
-  { id: "p5", name: "Ballpoint Pen", category: "Stationery", supplier: "PaperCo", quantity: 280, reorderLevel: 100, unitPrice: 1.2 },
-  { id: "p6", name: "Desk Lamp", category: "Office", supplier: "LumaWorks", quantity: 5, reorderLevel: 12, unitPrice: 34.5 },
-  { id: "p7", name: "Office Chair", category: "Furniture", supplier: "SitWell", quantity: 90, reorderLevel: 15, unitPrice: 189.0 },
-  { id: "p8", name: "Monitor 27\"", category: "Electronics", supplier: "ViewPlus", quantity: 22, reorderLevel: 8, unitPrice: 279.0 },
+  { id: "p1", name: "Wireless Mouse", category: "Electronics", supplier: "TechCorp", quantity: 42, reorderLevel: 20, unitPrice: 18500, color: "Black", code: "WM-001" },
+  { id: "p2", name: "USB-C Cable", category: "Electronics", supplier: "TechCorp", quantity: 8, reorderLevel: 30, unitPrice: 4500, color: "White", code: "UC-002" },
+  { id: "p3", name: "Mechanical Keyboard", category: "Electronics", supplier: "KeyMakers", quantity: 15, reorderLevel: 10, unitPrice: 72000, color: "Grey", code: "MK-003" },
+  { id: "p4", name: "Notebook A5", category: "Stationery", supplier: "PaperCo", quantity: 120, reorderLevel: 40, unitPrice: 2200, color: "Blue", code: "NB-004" },
+  { id: "p5", name: "Ballpoint Pen", category: "Stationery", supplier: "PaperCo", quantity: 280, reorderLevel: 100, unitPrice: 650, color: "Blue", code: "BP-005" },
+  { id: "p6", name: "Desk Lamp", category: "Office", supplier: "LumaWorks", quantity: 5, reorderLevel: 12, unitPrice: 24500, color: "Silver", code: "DL-006" },
+  { id: "p7", name: "Office Chair", category: "Furniture", supplier: "SitWell", quantity: 90, reorderLevel: 15, unitPrice: 145000, color: "Black", code: "OC-007" },
+  { id: "p8", name: "Monitor 27\"", category: "Electronics", supplier: "ViewPlus", quantity: 22, reorderLevel: 8, unitPrice: 210000, color: "Black", code: "MN-008" },
 ];
+
+export function formatNaira(n: number) {
+  return "₦" + (n ?? 0).toLocaleString("en-NG", { maximumFractionDigits: 0 });
+}
+
+export function productStatus(p: Product): "in_stock" | "low" | "out" {
+  if (p.quantity <= 0) return "out";
+  if (p.quantity <= p.reorderLevel) return "low";
+  return "in_stock";
+}
+
+export function allTimeMovement(transactions: Transaction[], productId: string) {
+  let inQty = 0;
+  let outQty = 0;
+  for (const t of transactions) {
+    if (t.productId !== productId) continue;
+    if (t.quantityChanged > 0) inQty += t.quantityChanged;
+    else outQty += -t.quantityChanged;
+  }
+  return { inQty, outQty };
+}
 
 function generateDemandHistory(): DemandPoint[] {
   const pts: DemandPoint[] = [];
