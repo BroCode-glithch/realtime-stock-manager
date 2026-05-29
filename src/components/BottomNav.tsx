@@ -1,13 +1,18 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { LayoutDashboard, Package, BellRing, BarChart3, User } from "lucide-react";
+import {
+  LayoutDashboard, Package, BellRing, BarChart3, MoreHorizontal,
+} from "lucide-react";
 import { useStore } from "@/lib/inventory-store";
+import {
+  Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
+import { navItems } from "@/components/AppShell";
 
-const items = [
+const primary = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/inventory", label: "Inventory", icon: Package },
+  { to: "/inventory", label: "Products", icon: Package },
   { to: "/alerts", label: "Alerts", icon: BellRing },
   { to: "/reports", label: "Reports", icon: BarChart3 },
-  { to: "/profile", label: "Profile", icon: User },
 ] as const;
 
 export function BottomNav() {
@@ -17,7 +22,7 @@ export function BottomNav() {
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
       <ul className="mx-auto flex max-w-2xl items-stretch justify-around px-2">
-        {items.map(({ to, label, icon: Icon }) => {
+        {primary.map(({ to, label, icon: Icon }) => {
           const active = location.pathname.startsWith(to);
           return (
             <li key={to} className="flex-1">
@@ -41,6 +46,31 @@ export function BottomNav() {
             </li>
           );
         })}
+        <li className="flex-1">
+          <Sheet>
+            <SheetTrigger asChild>
+              <button className="w-full flex flex-col items-center gap-1 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground">
+                <MoreHorizontal className="h-5 w-5" strokeWidth={1.8} />
+                <span>More</span>
+              </button>
+            </SheetTrigger>
+            <SheetContent side="bottom" className="rounded-t-2xl">
+              <SheetHeader><SheetTitle>All sections</SheetTitle></SheetHeader>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                {navItems.map(({ to, label, icon: Icon }) => (
+                  <Link
+                    key={to}
+                    to={to}
+                    className="flex flex-col items-center gap-1.5 rounded-xl border border-border p-3 text-xs font-medium hover:bg-secondary"
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span>{label}</span>
+                  </Link>
+                ))}
+              </div>
+            </SheetContent>
+          </Sheet>
+        </li>
       </ul>
     </nav>
   );

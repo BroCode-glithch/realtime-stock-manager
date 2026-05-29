@@ -1,13 +1,20 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { LayoutDashboard, Package, BellRing, BarChart3, User, Upload, Boxes } from "lucide-react";
+import {
+  LayoutDashboard, Package, BellRing, BarChart3, User, Upload, Boxes,
+  ArrowDownToLine, ArrowUpFromLine, Receipt, Settings as SettingsIcon,
+} from "lucide-react";
 import { useStore } from "@/lib/inventory-store";
 
 export const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/inventory", label: "Inventory", icon: Package },
+  { to: "/inventory", label: "Products", icon: Package },
+  { to: "/stock-in", label: "Stock In", icon: ArrowDownToLine },
+  { to: "/stock-out", label: "Stock Out", icon: ArrowUpFromLine },
+  { to: "/sales", label: "Sales", icon: Receipt },
   { to: "/alerts", label: "Alerts", icon: BellRing },
   { to: "/reports", label: "Reports", icon: BarChart3 },
   { to: "/import", label: "Import", icon: Upload },
+  { to: "/settings", label: "Settings", icon: SettingsIcon },
   { to: "/profile", label: "Profile", icon: User },
 ] as const;
 
@@ -26,7 +33,7 @@ export function Sidebar() {
           <p className="mt-1 text-[11px] text-muted-foreground">Adaptive control</p>
         </div>
       </div>
-      <nav className="flex-1 p-3 space-y-1">
+      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {navItems.map(({ to, label, icon: Icon }) => {
           const active = location.pathname.startsWith(to);
           return (
