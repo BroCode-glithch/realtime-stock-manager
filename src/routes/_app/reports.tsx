@@ -93,7 +93,7 @@ function Reports() {
           String(p.quantity),
           String(p.reorderLevel),
           avg.toFixed(1),
-          `$${(p.quantity * p.unitPrice).toFixed(2)}`,
+          `NGN ${(p.quantity * p.unitPrice).toLocaleString("en-NG")}`,
         ];
       }),
       headStyles: { fillColor: [70, 110, 200] },
