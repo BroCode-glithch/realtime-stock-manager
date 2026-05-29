@@ -1,8 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useStore } from "@/lib/inventory-store";
+import { useStore } from "../../lib/inventory-store";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { LogOut, RefreshCcw, Shield } from "lucide-react";
+import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
 
 export const Route = createFileRoute("/_app/profile")({
   component: Profile,
@@ -39,7 +41,7 @@ function Profile() {
         <h3 className="mb-3 text-sm font-semibold">Audit trail</h3>
         <div className="space-y-2">
           {transactions.slice(0, 10).map((t) => (
-            <div key={t.id} className="flex items-center justify-between border-b border-border pb-2 last:border-0">
+            <div key={t.id} className="flex items-center justify-between pb-2 last:pb-0">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{t.productName}</p>
                 <p className="text-[11px] text-muted-foreground">
@@ -58,19 +60,45 @@ function Profile() {
       </Card>
 
       <div className="space-y-2">
-        <Button variant="outline" className="w-full justify-start gap-2" onClick={reset}>
-          <RefreshCcw className="h-4 w-4" /> Reset demo data
-        </Button>
-        <Button
-          variant="outline"
-          className="w-full justify-start gap-2 text-destructive hover:text-destructive"
-          onClick={() => {
+        <ConfirmActionDialog
+          title="Restore demo data"
+          description="Restore the seeded inventory, transactions, alerts, and channels to their default demo state?"
+          confirmLabel="Restore"
+          destructive={false}
+          onConfirm={reset}
+          trigger={
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" className="w-full justify-start gap-2">
+                  <RefreshCcw className="h-4 w-4" /> Restore demo data
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right"><p>Reset the demo data to its seeded state.</p></TooltipContent>
+            </Tooltip>
+          }
+        />
+        <ConfirmActionDialog
+          title="Sign out"
+          description="Sign out of this device and return to the login screen?"
+          confirmLabel="Sign out"
+          onConfirm={async () => {
             logout();
             navigate({ to: "/login" });
           }}
-        >
-          <LogOut className="h-4 w-4" /> Sign out
-        </Button>
+          trigger={
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2 text-destructive hover:text-destructive"
+                >
+                  <LogOut className="h-4 w-4" /> Sign out
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right"><p>Sign out of the current session.</p></TooltipContent>
+            </Tooltip>
+          }
+        />
       </div>
     </div>
   );

@@ -7,8 +7,10 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 
 import appCss from "../styles.css?url";
+import { SystemPreloader } from "../components/SystemPreloader";
 
 function NotFoundComponent() {
   return (
@@ -72,11 +74,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "Smart Inventory" },
+      { name: "description", content: "Realtime stock intelligence for retail and warehouse teams" },
+      { name: "author", content: "GitHub Copilot" },
+      { property: "og:title", content: "Smart Inventory" },
+      { property: "og:description", content: "Realtime stock intelligence for retail and warehouse teams" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
@@ -95,12 +97,25 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootShell({ children }: { children: React.ReactNode }) {
+  const [hydrated, setHydrated] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setShowSplash(false), 1200);
+    return () => window.clearTimeout(id);
+  }, []);
+
   return (
     <html lang="en">
       <head>
         <HeadContent />
       </head>
-      <body>
+      <body className="bg-background text-foreground antialiased overflow-x-hidden">
+        <SystemPreloader visible={!hydrated || showSplash} />
         {children}
         <Scripts />
       </body>

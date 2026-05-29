@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { useStore, formatNaira } from "@/lib/inventory-store";
+import { useEffect, useMemo, useState } from "react";
+import { can, useStore, formatNaira } from "../../lib/inventory-store";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { ArrowDownToLine } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export const Route = createFileRoute("/_app/stock-in")({
   component: StockIn,
@@ -19,14 +20,23 @@ export const Route = createFileRoute("/_app/stock-in")({
 });
 
 function StockIn() {
+  const role = useStore((s) => s.user?.role ?? "staff");
   const products = useStore((s) => s.products);
   const transactions = useStore((s) => s.transactions);
+  const channels = useStore((s) => s.channels);
   const recordTransaction = useStore((s) => s.recordTransaction);
-  const role = useStore((s) => s.user?.role ?? "staff");
-  const canAdd = role === "admin" || role === "manager" || role === "staff";
+  const canAdd = can(role, "stock_in");
 
   const [productId, setProductId] = useState(products[0]?.id ?? "");
   const [qty, setQty] = useState(1);
+  const enabledChannels = useMemo(() => channels.filter((channel) => channel.enabled), [channels]);
+  const [channelId, setChannelId] = useState("");
+
+  useEffect(() => {
+    if (!channelId && enabledChannels.length > 0) {
+      setChannelId(enabledChannels[0].id);
+    }
+  }, [channelId, enabledChannels]);
 
   const ins = useMemo(
     () => transactions.filter((t) => t.quantityChanged > 0).sort((a, b) => b.timestamp - a.timestamp),
@@ -35,7 +45,7 @@ function StockIn() {
 
   const submit = () => {
     if (!productId || qty <= 0) return;
-    recordTransaction(productId, qty, "in");
+    void recordTransaction(productId, qty, "in", channelId || undefined);
     setQty(1);
   };
 
@@ -46,7 +56,7 @@ function StockIn() {
           <ArrowDownToLine className="h-4 w-4 text-success" />
           <h2 className="font-semibold">Receive new stock</h2>
         </div>
-        <div className="grid gap-3 md:grid-cols-[1fr_120px_auto] items-end">
+        <div className="grid gap-3 md:grid-cols-[1fr_120px_220px_auto] items-end">
           <div className="space-y-1.5">
             <Label className="text-xs">Product</Label>
             <Select value={productId} onValueChange={setProductId}>
@@ -64,7 +74,25 @@ function StockIn() {
             <Label className="text-xs">Quantity</Label>
             <Input type="number" min={1} value={qty} onChange={(e) => setQty(+e.target.value)} />
           </div>
-          <Button onClick={submit} disabled={!canAdd}>Add to inventory</Button>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Channel</Label>
+            <Select value={channelId} onValueChange={setChannelId}>
+              <SelectTrigger><SelectValue placeholder="Select channel" /></SelectTrigger>
+              <SelectContent>
+                {enabledChannels.map((channel) => (
+                  <SelectItem key={channel.id} value={channel.id}>
+                    {channel.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button onClick={submit} disabled={!canAdd}>Add to inventory</Button>
+            </TooltipTrigger>
+            <TooltipContent side="top"><p>Record incoming stock for this product.</p></TooltipContent>
+          </Tooltip>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
           Added quantity is automatically reflected in the product listing's available stock.
@@ -72,10 +100,10 @@ function StockIn() {
       </Card>
 
       <Card className="overflow-hidden">
-        <div className="px-4 py-3 border-b border-border">
+        <div className="px-4 py-3">
           <h2 className="font-semibold text-sm">Stock In history</h2>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto scrollbar-none">
           <Table>
             <TableHeader>
               <TableRow>

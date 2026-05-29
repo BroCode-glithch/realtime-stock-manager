@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useStore } from "@/lib/inventory-store";
+import { useStore } from "../../lib/inventory-store";
 import { Card } from "@/components/ui/card";
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { Package, AlertTriangle, TrendingDown, DollarSign } from "lucide-react";

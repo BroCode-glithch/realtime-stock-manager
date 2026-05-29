@@ -1,5 +1,5 @@
 import { apiJson, getRealtimeUrl } from "@/lib/inventory-api";
-import { useStore } from "@/lib/inventory-store";
+import { useStore } from "./inventory-store";
 
 type RealtimeMessage =
   | { event: "snapshot"; payload: unknown }

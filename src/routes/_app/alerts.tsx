@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { useStore, type Alert as AlertType } from "@/lib/inventory-store";
+import { useStore, type Alert as AlertType } from "../../lib/inventory-store";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, PackageX, TrendingUp, CheckCheck } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export const Route = createFileRoute("/_app/alerts")({
   component: Alerts,
@@ -48,27 +49,36 @@ function Alerts() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">{filtered.length} of {alerts.length} alerts</p>
-        <Button size="sm" variant="ghost" onClick={markRead} className="gap-1.5">
-          <CheckCheck className="h-4 w-4" /> Mark all read
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button size="sm" variant="ghost" onClick={markRead} className="gap-1.5">
+              <CheckCheck className="h-4 w-4" /> Mark all read
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="left"><p>Mark every alert in this view as read.</p></TooltipContent>
+        </Tooltip>
       </div>
 
-      <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-border bg-card p-1.5">
+      <div className="flex gap-1.5 overflow-x-auto scrollbar-none rounded-xl border border-border bg-card p-1.5">
         {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setFilter(t.id)}
-            className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-              filter === t.id
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-            }`}
-          >
-            {t.label}
-            <span className={`grid h-4 min-w-4 place-items-center rounded-full px-1 text-[10px] tabular-nums ${
-              filter === t.id ? "bg-primary-foreground/20" : "bg-secondary"
-            }`}>{t.count}</span>
-          </button>
+          <Tooltip key={t.id}>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => setFilter(t.id)}
+                className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  filter === t.id
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                }`}
+              >
+                {t.label}
+                <span className={`grid h-4 min-w-4 place-items-center rounded-full px-1 text-[10px] tabular-nums ${
+                  filter === t.id ? "bg-primary-foreground/20" : "bg-secondary"
+                }`}>{t.count}</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom"><p>Show {t.label.toLowerCase()} alerts.</p></TooltipContent>
+          </Tooltip>
         ))}
       </div>
 

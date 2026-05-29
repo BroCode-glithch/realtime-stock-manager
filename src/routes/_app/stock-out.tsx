@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { useStore, formatNaira } from "@/lib/inventory-store";
+import { useEffect, useMemo, useState } from "react";
+import { can, useStore, formatNaira } from "../../lib/inventory-store";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { ArrowUpFromLine } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export const Route = createFileRoute("/_app/stock-out")({
   component: StockOut,
@@ -19,12 +20,23 @@ export const Route = createFileRoute("/_app/stock-out")({
 });
 
 function StockOut() {
+  const role = useStore((s) => s.user?.role ?? "staff");
   const products = useStore((s) => s.products);
   const transactions = useStore((s) => s.transactions);
+  const channels = useStore((s) => s.channels);
   const recordTransaction = useStore((s) => s.recordTransaction);
+  const canAdd = can(role, "stock_out");
 
   const [productId, setProductId] = useState(products[0]?.id ?? "");
   const [qty, setQty] = useState(1);
+  const enabledChannels = useMemo(() => channels.filter((channel) => channel.enabled), [channels]);
+  const [channelId, setChannelId] = useState("");
+
+  useEffect(() => {
+    if (!channelId && enabledChannels.length > 0) {
+      setChannelId(enabledChannels[0].id);
+    }
+  }, [channelId, enabledChannels]);
 
   const outs = useMemo(
     () => transactions.filter((t) => t.quantityChanged < 0).sort((a, b) => b.timestamp - a.timestamp),
@@ -33,7 +45,7 @@ function StockOut() {
 
   const submit = () => {
     if (!productId || qty <= 0) return;
-    recordTransaction(productId, qty, "out");
+    void recordTransaction(productId, qty, "out", channelId || undefined);
     setQty(1);
   };
 
@@ -49,7 +61,7 @@ function StockOut() {
           <ArrowUpFromLine className="h-4 w-4 text-destructive" />
           <h2 className="font-semibold">Record a sale</h2>
         </div>
-        <div className="grid gap-3 md:grid-cols-[1fr_120px_auto] items-end">
+        <div className="grid gap-3 md:grid-cols-[1fr_120px_220px_auto] items-end">
           <div className="space-y-1.5">
             <Label className="text-xs">Product</Label>
             <Select value={productId} onValueChange={setProductId}>
@@ -67,16 +79,34 @@ function StockOut() {
             <Label className="text-xs">Quantity sold</Label>
             <Input type="number" min={1} value={qty} onChange={(e) => setQty(+e.target.value)} />
           </div>
-          <Button onClick={submit} variant="default">Record sale</Button>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Channel</Label>
+            <Select value={channelId} onValueChange={setChannelId}>
+              <SelectTrigger><SelectValue placeholder="Select channel" /></SelectTrigger>
+              <SelectContent>
+                {enabledChannels.map((channel) => (
+                  <SelectItem key={channel.id} value={channel.id}>
+                    {channel.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button onClick={submit} variant="default" disabled={!canAdd}>Record sale</Button>
+            </TooltipTrigger>
+            <TooltipContent side="top"><p>Record an outgoing sale transaction.</p></TooltipContent>
+          </Tooltip>
         </div>
       </Card>
 
       <Card className="overflow-hidden">
-        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+        <div className="px-4 py-3 flex items-center justify-between">
           <h2 className="font-semibold text-sm">Stock Out (Sold) history</h2>
           <span className="text-xs text-muted-foreground">Total revenue: <span className="font-semibold text-foreground">{formatNaira(totalSold)}</span></span>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto scrollbar-none">
           <Table>
             <TableHeader>
               <TableRow>

@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useStore,
   type Product,
   formatNaira,
   productStatus,
   allTimeMovement,
-} from "@/lib/inventory-store";
+} from "../../lib/inventory-store";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,20 +17,30 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
+import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
 
 export const Route = createFileRoute("/_app/inventory")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: typeof search.q === "string" ? search.q : "",
+  }),
   component: Inventory,
   head: () => ({ meta: [{ title: "Product Listing — Smart Inventory" }] }),
 });
 
 function Inventory() {
+  const { q: searchQuery } = Route.useSearch();
   const products = useStore((s) => s.products);
   const transactions = useStore((s) => s.transactions);
   const deleteProduct = useStore((s) => s.deleteProduct);
   const role = useStore((s) => s.user?.role ?? "staff");
   const [q, setQ] = useState("");
   const canEdit = role === "admin" || role === "manager";
+
+  useEffect(() => {
+    setQ(searchQuery);
+  }, [searchQuery]);
 
   const filtered = products.filter((p) =>
     [p.name, p.category, p.supplier, p.code, p.color]
@@ -54,7 +64,7 @@ function Inventory() {
       </div>
 
       <Card className="overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto scrollbar-none">
           <Table>
             <TableHeader>
               <TableRow>
@@ -94,9 +104,22 @@ function Inventory() {
                         <div className="flex justify-end gap-1">
                           <ProductDialog mode="edit" product={p} />
                           {role === "admin" && (
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => deleteProduct(p.id)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <ConfirmActionDialog
+                              title="Delete product"
+                              description={`Delete ${p.name}? This cannot be undone and will remove the product from inventory.`}
+                              confirmLabel="Delete"
+                              onConfirm={() => deleteProduct(p.id)}
+                              trigger={
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive">
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top"><p>Delete product</p></TooltipContent>
+                                </Tooltip>
+                              }
+                            />
                           )}
                         </div>
                       </TableCell>
@@ -157,34 +180,51 @@ function ProductDialog({ mode, product }: { mode: "create" | "edit"; product?: P
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {mode === "create" ? (
-          <Button className="gap-1.5"><Plus className="h-4 w-4" /> New product</Button>
-        ) : (
-          <Button size="icon" variant="ghost" className="h-8 w-8"><Pencil className="h-4 w-4" /></Button>
-        )}
-      </DialogTrigger>
-      <DialogContent>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DialogTrigger asChild>
+            {mode === "create" ? (
+              <Button className="gap-1.5"><Plus className="h-4 w-4" /> New product</Button>
+            ) : (
+              <Button size="icon" variant="ghost" className="h-8 w-8"><Pencil className="h-4 w-4" /></Button>
+            )}
+          </DialogTrigger>
+        </TooltipTrigger>
+        <TooltipContent side={mode === "create" ? "bottom" : "top"}>
+          <p>{mode === "create" ? "Create a new product." : "Edit product"}</p>
+        </TooltipContent>
+      </Tooltip>
+      <DialogContent className="max-h-[92dvh] w-[calc(100vw-1rem)] overflow-y-auto p-4 sm:max-w-2xl sm:p-6">
         <DialogHeader><DialogTitle>{mode === "create" ? "New product" : "Edit product"}</DialogTitle></DialogHeader>
         <div className="grid gap-3">
           <Field label="Name"><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Item code"><Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} /></Field>
             <Field label="Color"><Input value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} /></Field>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Category"><Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /></Field>
             <Field label="Supplier"><Input value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} /></Field>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Field label="Qty"><Input type="number" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: +e.target.value })} /></Field>
             <Field label="Reorder"><Input type="number" value={form.reorderLevel} onChange={(e) => setForm({ ...form, reorderLevel: +e.target.value })} /></Field>
             <Field label="Price (₦)"><Input type="number" step="1" value={form.unitPrice} onChange={(e) => setForm({ ...form, unitPrice: +e.target.value })} /></Field>
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={submit}>{mode === "create" ? "Create" : "Save"}</Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            </TooltipTrigger>
+            <TooltipContent side="top"><p>Dismiss without saving.</p></TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button onClick={submit}>{mode === "create" ? "Create" : "Save"}</Button>
+            </TooltipTrigger>
+            <TooltipContent side="top"><p>{mode === "create" ? "Create this product." : "Save your changes."}</p></TooltipContent>
+          </Tooltip>
         </DialogFooter>
       </DialogContent>
     </Dialog>

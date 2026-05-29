@@ -20,6 +20,7 @@ import { Route as AppReportsRouteImport } from './routes/_app/reports'
 import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppInventoryRouteImport } from './routes/_app/inventory'
 import { Route as AppImportRouteImport } from './routes/_app/import'
+import { Route as AppGuideRouteImport } from './routes/_app/guide'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppAlertsRouteImport } from './routes/_app/alerts'
 
@@ -77,6 +78,11 @@ const AppImportRoute = AppImportRouteImport.update({
   path: '/import',
   getParentRoute: () => AppRoute,
 } as any)
+const AppGuideRoute = AppGuideRouteImport.update({
+  id: '/guide',
+  path: '/guide',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -93,6 +99,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/alerts': typeof AppAlertsRoute
   '/dashboard': typeof AppDashboardRoute
+  '/guide': typeof AppGuideRoute
   '/import': typeof AppImportRoute
   '/inventory': typeof AppInventoryRoute
   '/profile': typeof AppProfileRoute
@@ -107,6 +114,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/alerts': typeof AppAlertsRoute
   '/dashboard': typeof AppDashboardRoute
+  '/guide': typeof AppGuideRoute
   '/import': typeof AppImportRoute
   '/inventory': typeof AppInventoryRoute
   '/profile': typeof AppProfileRoute
@@ -123,6 +131,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_app/alerts': typeof AppAlertsRoute
   '/_app/dashboard': typeof AppDashboardRoute
+  '/_app/guide': typeof AppGuideRoute
   '/_app/import': typeof AppImportRoute
   '/_app/inventory': typeof AppInventoryRoute
   '/_app/profile': typeof AppProfileRoute
@@ -139,6 +148,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/alerts'
     | '/dashboard'
+    | '/guide'
     | '/import'
     | '/inventory'
     | '/profile'
@@ -153,6 +163,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/alerts'
     | '/dashboard'
+    | '/guide'
     | '/import'
     | '/inventory'
     | '/profile'
@@ -168,6 +179,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/_app/alerts'
     | '/_app/dashboard'
+    | '/_app/guide'
     | '/_app/import'
     | '/_app/inventory'
     | '/_app/profile'
@@ -263,6 +275,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppImportRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/guide': {
+      id: '/_app/guide'
+      path: '/guide'
+      fullPath: '/guide'
+      preLoaderRoute: typeof AppGuideRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/dashboard': {
       id: '/_app/dashboard'
       path: '/dashboard'
@@ -283,6 +302,7 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppAlertsRoute: typeof AppAlertsRoute
   AppDashboardRoute: typeof AppDashboardRoute
+  AppGuideRoute: typeof AppGuideRoute
   AppImportRoute: typeof AppImportRoute
   AppInventoryRoute: typeof AppInventoryRoute
   AppProfileRoute: typeof AppProfileRoute
@@ -296,6 +316,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAlertsRoute: AppAlertsRoute,
   AppDashboardRoute: AppDashboardRoute,
+  AppGuideRoute: AppGuideRoute,
   AppImportRoute: AppImportRoute,
   AppInventoryRoute: AppInventoryRoute,
   AppProfileRoute: AppProfileRoute,
@@ -316,3 +337,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

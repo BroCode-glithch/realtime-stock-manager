@@ -1,7 +1,8 @@
-import { useStore } from "@/lib/inventory-store";
+import { useStore } from "../lib/inventory-store";
 import { Button } from "@/components/ui/button";
 import { Play, Pause, Gauge } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export function SimControls({ compact = false }: { compact?: boolean }) {
   const running = useStore((s) => s.simRunning);
@@ -11,14 +12,21 @@ export function SimControls({ compact = false }: { compact?: boolean }) {
 
   return (
     <div className={`flex items-center gap-3 rounded-xl border border-border bg-card p-2.5 ${compact ? "" : "shadow-sm"}`}>
-      <Button
-        size="sm"
-        variant={running ? "secondary" : "default"}
-        onClick={() => setRunning(!running)}
-        className="gap-1.5"
-      >
-        {running ? <><Pause className="h-3.5 w-3.5" /> Pause</> : <><Play className="h-3.5 w-3.5" /> Start</>}
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            size="sm"
+            variant={running ? "secondary" : "default"}
+            onClick={() => setRunning(!running)}
+            className="gap-1.5"
+          >
+            {running ? <><Pause className="h-3.5 w-3.5" /> Pause</> : <><Play className="h-3.5 w-3.5" /> Start</>}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          <p>{running ? "Pause the simulation timer." : "Start the simulation timer."}</p>
+        </TooltipContent>
+      </Tooltip>
       <div className="flex flex-1 items-center gap-2 min-w-0">
         <Gauge className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
         <Slider

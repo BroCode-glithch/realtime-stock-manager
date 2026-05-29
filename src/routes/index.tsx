@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useStore } from "@/lib/inventory-store";
+import { useStore } from "../lib/inventory-store";
 
 export const Route = createFileRoute("/")({
   component: () => null,

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,18 +10,14 @@ import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Store, ShoppingBag, Globe, Smartphone, Plus, Check } from "lucide-react";
+import { can, useStore, type SalesChannel } from "../../lib/inventory-store";
+import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export const Route = createFileRoute("/_app/settings")({
   component: Settings,
   head: () => ({ meta: [{ title: "Settings — Smart Inventory" }] }),
 });
-
-type Channel = {
-  id: string;
-  name: string;
-  type: "retail" | "online" | "marketplace" | "mobile";
-  enabled: boolean;
-};
 
 const ICONS = {
   retail: Store,
@@ -30,20 +27,26 @@ const ICONS = {
 };
 
 function Settings() {
-  const [channels, setChannels] = useState<Channel[]>([
-    { id: "c1", name: "Lagos Flagship Store", type: "retail", enabled: true },
-    { id: "c2", name: "Online Store (Web)", type: "online", enabled: true },
-    { id: "c3", name: "Jumia Marketplace", type: "marketplace", enabled: false },
-    { id: "c4", name: "WhatsApp Catalog", type: "mobile", enabled: true },
-  ]);
+  const role = useStore((s) => s.user?.role ?? "staff");
+  const canManage = can(role, "manage_channels");
+  const channels = useStore((s) => s.channels);
+  const loadChannels = useStore((s) => s.loadChannels);
+  const createChannel = useStore((s) => s.createChannel);
+  const updateChannel = useStore((s) => s.updateChannel);
+  const deleteChannel = useStore((s) => s.deleteChannel);
   const [newName, setNewName] = useState("");
+  const [newType, setNewType] = useState<SalesChannel["type"]>("online");
 
-  const toggle = (id: string) =>
-    setChannels((cs) => cs.map((c) => (c.id === id ? { ...c, enabled: !c.enabled } : c)));
+  useEffect(() => {
+    void loadChannels();
+  }, [loadChannels]);
+
+  const toggle = (channel: SalesChannel) =>
+    void updateChannel(channel.id, { enabled: !channel.enabled });
 
   const add = () => {
     if (!newName.trim()) return;
-    setChannels((cs) => [...cs, { id: `c${Date.now()}`, name: newName.trim(), type: "online", enabled: true }]);
+    void createChannel({ name: newName.trim(), type: newType, enabled: true, notes: "Created from frontend" });
     setNewName("");
   };
 
@@ -84,16 +87,37 @@ function Settings() {
                   ) : (
                     <Badge variant="secondary">Disabled</Badge>
                   )}
-                  <Button size="sm" variant="outline" onClick={() => toggle(c.id)}>
-                    {c.enabled ? "Disable" : "Enable"}
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button size="sm" variant="outline" onClick={() => toggle(c)} disabled={!canManage}>
+                        {c.enabled ? "Disable" : "Enable"}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top"><p>{c.enabled ? "Pause sales from this channel." : "Re-enable this channel."}</p></TooltipContent>
+                  </Tooltip>
+                  <ConfirmActionDialog
+                    title="Delete channel"
+                    description={`Delete ${c.name}? Existing transactions keep their history, but the channel will be removed from the active list.`}
+                    confirmLabel="Delete"
+                    onConfirm={() => void deleteChannel(c.id)}
+                    trigger={
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" disabled={!canManage}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top"><p>Delete channel</p></TooltipContent>
+                      </Tooltip>
+                    }
+                  />
                 </div>
               </div>
             );
           })}
         </div>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
+        <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_180px_auto]">
           <div className="space-y-1.5">
             <Label className="text-xs">Add a new channel</Label>
             <Input
@@ -102,8 +126,26 @@ function Settings() {
               onChange={(e) => setNewName(e.target.value)}
             />
           </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Channel type</Label>
+            <select
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              value={newType}
+              onChange={(e) => setNewType(e.target.value as SalesChannel["type"])}
+            >
+              <option value="retail">Retail</option>
+              <option value="online">Online</option>
+              <option value="marketplace">Marketplace</option>
+              <option value="mobile">Mobile</option>
+            </select>
+          </div>
           <div className="flex items-end">
-            <Button onClick={add} className="gap-1.5"><Plus className="h-4 w-4" /> Add channel</Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={add} className="gap-1.5" disabled={!canManage}><Plus className="h-4 w-4" /> Add channel</Button>
+              </TooltipTrigger>
+              <TooltipContent side="top"><p>Add a new sales channel.</p></TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </Card>

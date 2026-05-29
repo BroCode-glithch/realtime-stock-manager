@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { useStore, formatNaira } from "@/lib/inventory-store";
+import { useStore, formatNaira } from "../../lib/inventory-store";
 import { Card } from "@/components/ui/card";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -75,10 +75,10 @@ function SalesReport() {
       </Card>
 
       <Card className="overflow-hidden">
-        <div className="px-4 py-3 border-b border-border">
+        <div className="px-4 py-3">
           <h2 className="font-semibold text-sm">Sales by product</h2>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto scrollbar-none">
           <Table>
             <TableHeader>
               <TableRow>

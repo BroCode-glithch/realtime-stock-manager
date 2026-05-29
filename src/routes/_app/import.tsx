@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import Papa from "papaparse";
-import { useStore, type Product } from "@/lib/inventory-store";
+import { can, useStore, type Product } from "../../lib/inventory-store";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Upload, FileText, Check, Download, AlertCircle } from "lucide-react";
 
 export const Route = createFileRoute("/_app/import")({
@@ -16,7 +17,9 @@ type Row = Omit<Product, "id">;
 const REQUIRED = ["name", "category", "supplier", "quantity", "reorderLevel", "unitPrice"];
 
 function ImportPage() {
+  const role = useStore((s) => s.user?.role ?? "staff");
   const bulkImport = useStore((s) => s.bulkImport);
+  const canImport = can(role, "import_products");
   const [rows, setRows] = useState<Row[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -55,8 +58,8 @@ function ImportPage() {
     });
   };
 
-  const confirm = () => {
-    bulkImport(rows);
+  const confirm = async () => {
+    await bulkImport(rows);
     setDone(true);
     setRows([]);
     setFileName(null);
@@ -84,9 +87,14 @@ function ImportPage() {
               Upload a CSV to initialize inventory. Required columns:{" "}
               <code className="rounded bg-secondary px-1 py-0.5 text-[11px]">{REQUIRED.join(", ")}</code>
             </p>
-            <Button onClick={downloadTemplate} variant="ghost" size="sm" className="mt-2 gap-1.5 -ml-2">
-              <Download className="h-3.5 w-3.5" /> Download template
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={downloadTemplate} variant="ghost" size="sm" className="mt-2 gap-1.5 -ml-2">
+                  <Download className="h-3.5 w-3.5" /> Download template
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom"><p>Download a sample CSV layout.</p></TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </Card>
@@ -133,9 +141,14 @@ function ImportPage() {
               <p className="text-sm font-medium">{fileName}</p>
               <span className="text-xs text-muted-foreground">{rows.length} rows ready</span>
             </div>
-            <Button size="sm" onClick={confirm}>Confirm import</Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="sm" onClick={confirm} disabled={!canImport}>Confirm import</Button>
+              </TooltipTrigger>
+              <TooltipContent side="top"><p>Import these rows into inventory.</p></TooltipContent>
+            </Tooltip>
           </div>
-          <div className="overflow-x-auto rounded-lg border border-border">
+          <div className="overflow-x-auto scrollbar-none rounded-lg border border-border">
             <table className="w-full text-xs">
               <thead className="bg-secondary/60 text-left">
                 <tr>
@@ -144,7 +157,7 @@ function ImportPage() {
               </thead>
               <tbody>
                 {rows.slice(0, 20).map((r, i) => (
-                  <tr key={i} className="border-t border-border">
+                  <tr key={i}>
                     <td className="px-3 py-2">{r.name}</td>
                     <td className="px-3 py-2">{r.category}</td>
                     <td className="px-3 py-2">{r.supplier}</td>
@@ -156,7 +169,7 @@ function ImportPage() {
               </tbody>
             </table>
             {rows.length > 20 && (
-              <p className="border-t border-border bg-secondary/30 px-3 py-2 text-center text-[11px] text-muted-foreground">
+              <p className="bg-secondary/30 px-3 py-2 text-center text-[11px] text-muted-foreground">
                 + {rows.length - 20} more rows
               </p>
             )}

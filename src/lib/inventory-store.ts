@@ -1,9 +1,91 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-import { apiJson, apiFetch } from "@/lib/inventory-api";
+import {
+  apiJson,
+  apiFetch,
+  setAuthToken,
+  type ApiChannel,
+  type ApiChannelListResponse,
+  type ApiDailySalesReport,
+  type ApiInventorySummaryReport,
+  type ApiLoginResponse,
+  type ApiPerformanceReport,
+  type ApiProduct,
+  type ApiProductListResponse,
+  type ApiSnapshot,
+  type ApiTransactionListResponse,
+  type ApiAlertsListResponse,
+  type ApiAlertsReadResponse,
+} from "@/lib/inventory-api";
 
 export type Role = "admin" | "manager" | "staff";
+
+export type Capability =
+  | "view_dashboard"
+  | "view_inventory"
+  | "create_product"
+  | "update_product"
+  | "delete_product"
+  | "stock_in"
+  | "stock_out"
+  | "view_sales"
+  | "view_alerts"
+  | "view_reports"
+  | "view_guide"
+  | "import_products"
+  | "manage_channels"
+  | "reset_data"
+  | "view_profile";
+
+const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
+  admin: [
+    "view_dashboard",
+    "view_inventory",
+    "create_product",
+    "update_product",
+    "delete_product",
+    "stock_in",
+    "stock_out",
+    "view_sales",
+    "view_alerts",
+    "view_reports",
+    "view_guide",
+    "import_products",
+    "manage_channels",
+    "reset_data",
+    "view_profile",
+  ],
+  manager: [
+    "view_dashboard",
+    "view_inventory",
+    "create_product",
+    "update_product",
+    "stock_in",
+    "stock_out",
+    "view_sales",
+    "view_alerts",
+    "view_reports",
+    "view_guide",
+    "import_products",
+    "manage_channels",
+    "view_profile",
+  ],
+  staff: [
+    "view_dashboard",
+    "view_inventory",
+    "stock_in",
+    "stock_out",
+    "view_sales",
+    "view_alerts",
+    "view_guide",
+    "view_profile",
+  ],
+};
+
+export function can(role: Role | undefined | null, capability: Capability) {
+  return ROLE_CAPABILITIES[role ?? "staff"].includes(capability);
+}
 
 export interface User {
   id: string;
@@ -22,8 +104,10 @@ export interface Product {
   unitPrice: number; // naira (₦)
   color?: string;
   code?: string;
+  status?: string;
 }
 
+export type SalesChannel = ApiChannel;
 
 export interface Transaction {
   id: string;
@@ -32,6 +116,7 @@ export interface Transaction {
   userId: string;
   quantityChanged: number;
   type: "in" | "out" | "adjust";
+  channelId?: string | null;
   timestamp: number;
 }
 
@@ -51,6 +136,12 @@ export interface DemandPoint {
   demand: number;
 }
 
+export type DailySalesReport = ApiDailySalesReport;
+export type InventorySummaryReport = ApiInventorySummaryReport;
+export type PerformanceReport = ApiPerformanceReport;
+
+export type ProductWrite = Omit<Product, "id">;
+
 const seedProducts: Product[] = [
   { id: "p1", name: "Wireless Mouse", category: "Electronics", supplier: "TechCorp", quantity: 42, reorderLevel: 20, unitPrice: 18500, color: "Black", code: "WM-001" },
   { id: "p2", name: "USB-C Cable", category: "Electronics", supplier: "TechCorp", quantity: 8, reorderLevel: 30, unitPrice: 4500, color: "White", code: "UC-002" },
@@ -60,6 +151,13 @@ const seedProducts: Product[] = [
   { id: "p6", name: "Desk Lamp", category: "Office", supplier: "LumaWorks", quantity: 5, reorderLevel: 12, unitPrice: 24500, color: "Silver", code: "DL-006" },
   { id: "p7", name: "Office Chair", category: "Furniture", supplier: "SitWell", quantity: 90, reorderLevel: 15, unitPrice: 145000, color: "Black", code: "OC-007" },
   { id: "p8", name: "Monitor 27\"", category: "Electronics", supplier: "ViewPlus", quantity: 22, reorderLevel: 8, unitPrice: 210000, color: "Black", code: "MN-008" },
+];
+
+const seedChannels: SalesChannel[] = [
+  { id: "c1", name: "Lagos Flagship Store", type: "retail", enabled: true, notes: "Primary walk-in branch" },
+  { id: "c2", name: "Online Store (Web)", type: "online", enabled: true, notes: "Primary ecommerce channel" },
+  { id: "c3", name: "Jumia Marketplace", type: "marketplace", enabled: false, notes: "Third-party marketplace" },
+  { id: "c4", name: "WhatsApp Catalog", type: "mobile", enabled: true, notes: "Mobile commerce channel" },
 ];
 
 export function formatNaira(n: number) {
@@ -75,57 +173,63 @@ export function productStatus(p: Product): "in_stock" | "low" | "out" {
 export function allTimeMovement(transactions: Transaction[], productId: string) {
   let inQty = 0;
   let outQty = 0;
-  for (const t of transactions) {
-    if (t.productId !== productId) continue;
-    if (t.quantityChanged > 0) inQty += t.quantityChanged;
-    else outQty += -t.quantityChanged;
+  for (const transaction of transactions) {
+    if (transaction.productId !== productId) continue;
+    if (transaction.quantityChanged > 0) inQty += transaction.quantityChanged;
+    else outQty += -transaction.quantityChanged;
   }
   return { inQty, outQty };
 }
 
 function generateDemandHistory(): DemandPoint[] {
-  const pts: DemandPoint[] = [];
+  const points: DemandPoint[] = [];
   const now = Date.now();
-  for (const p of seedProducts) {
+  for (const product of seedProducts) {
     for (let i = 13; i >= 0; i--) {
       const d = new Date(now - i * 86400000);
       const day = `${d.getMonth() + 1}/${d.getDate()}`;
-      pts.push({
-        productId: p.id,
+      points.push({
+        productId: product.id,
         day,
         demand: Math.max(0, Math.round(5 + Math.random() * 12 + Math.sin(i / 2) * 3)),
       });
     }
   }
-  return pts;
+  return points;
 }
 
 interface State {
+  token: string | null;
   user: User | null;
   products: Product[];
   transactions: Transaction[];
   alerts: Alert[];
   demand: DemandPoint[];
+  channels: SalesChannel[];
   staticBaseline: { stockouts: number; excess: number };
   simRunning: boolean;
   simIntervalMs: number;
   setSimRunning: (v: boolean) => void;
   setSimIntervalMs: (ms: number) => void;
   syncFromServer: () => Promise<void>;
-  login: (email: string, role: Role) => void;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  addProduct: (p: Omit<Product, "id">) => void;
-  updateProduct: (id: string, p: Partial<Product>) => void;
-  deleteProduct: (id: string) => void;
-  recordTransaction: (productId: string, qty: number, type: Transaction["type"]) => void;
-  markAlertsRead: () => void;
-  tickSimulation: () => void;
-  bulkImport: (rows: Omit<Product, "id">[]) => void;
-  resetSeed: () => void;
+  addProduct: (product: ProductWrite) => Promise<void>;
+  updateProduct: (id: string, patch: Partial<ProductWrite>) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
+  recordTransaction: (productId: string, qty: number, type: Transaction["type"], channelId?: string | null) => Promise<void>;
+  markAlertsRead: (ids?: string[]) => Promise<void>;
+  tickSimulation: (seed?: number) => Promise<void>;
+  bulkImport: (rows: ProductWrite[]) => Promise<void>;
+  resetSeed: () => Promise<void>;
+  loadChannels: () => Promise<void>;
+  createChannel: (channel: Omit<SalesChannel, "id">) => Promise<void>;
+  updateChannel: (id: string, patch: Partial<Omit<SalesChannel, "id">>) => Promise<void>;
+  deleteChannel: (id: string) => Promise<void>;
+  can: (capability: Capability) => boolean;
 }
 
-
-type Snapshot = Pick<State, "products" | "transactions" | "alerts" | "demand" | "staticBaseline">;
+type Snapshot = Pick<State, "products" | "transactions" | "alerts" | "demand" | "channels" | "staticBaseline">;
 
 function mergeSnapshot(setState: (partial: Partial<State>) => void, snapshot: Snapshot) {
   setState(snapshot);
@@ -133,27 +237,27 @@ function mergeSnapshot(setState: (partial: Partial<State>) => void, snapshot: Sn
 
 function evalAlerts(products: Product[], demand: DemandPoint[]): Alert[] {
   const alerts: Alert[] = [];
-  for (const p of products) {
-    const recent = demand.filter((d) => d.productId === p.id).slice(-7);
-    const avg = recent.reduce((a, b) => a + b.demand, 0) / Math.max(1, recent.length);
-    const adaptiveThreshold = Math.max(p.reorderLevel, Math.round(avg * 3));
-    if (p.quantity <= adaptiveThreshold) {
+  for (const product of products) {
+    const recent = demand.filter((entry) => entry.productId === product.id).slice(-7);
+    const avg = recent.reduce((sum, entry) => sum + entry.demand, 0) / Math.max(1, recent.length);
+    const adaptiveThreshold = Math.max(product.reorderLevel, Math.round(avg * 3));
+    if (product.quantity <= adaptiveThreshold) {
       alerts.push({
-        id: `a-${p.id}-${Date.now()}`,
-        productId: p.id,
-        productName: p.name,
-        type: p.quantity <= p.reorderLevel ? "low_stock" : "reorder",
-        message: `${p.name} at ${p.quantity} units. Avg demand ${avg.toFixed(1)}/day. Suggested reorder.`,
+        id: `a-${product.id}-${Date.now()}`,
+        productId: product.id,
+        productName: product.name,
+        type: product.quantity <= product.reorderLevel ? "low_stock" : "reorder",
+        message: `${product.name} at ${product.quantity} units. Avg demand ${avg.toFixed(1)}/day. Suggested reorder.`,
         timestamp: Date.now(),
         read: false,
       });
-    } else if (p.quantity > adaptiveThreshold * 5 && p.quantity > 50) {
+    } else if (product.quantity > adaptiveThreshold * 5 && product.quantity > 50) {
       alerts.push({
-        id: `a-${p.id}-${Date.now()}`,
-        productId: p.id,
-        productName: p.name,
+        id: `a-${product.id}-${Date.now()}`,
+        productId: product.id,
+        productName: product.name,
         type: "overstock",
-        message: `${p.name} overstocked at ${p.quantity} units (avg demand ${avg.toFixed(1)}/day).`,
+        message: `${product.name} overstocked at ${product.quantity} units (avg demand ${avg.toFixed(1)}/day).`,
         timestamp: Date.now(),
         read: false,
       });
@@ -162,14 +266,45 @@ function evalAlerts(products: Product[], demand: DemandPoint[]): Alert[] {
   return alerts;
 }
 
+async function syncSnapshot(set: (partial: Partial<State>) => void, get: () => State) {
+  const [snapshot, products, transactions, alerts, channels] = await Promise.all([
+    apiJson<ApiSnapshot>("/api/state"),
+    apiJson<ApiProductListResponse>("/api/products?limit=200&offset=0"),
+    apiJson<ApiTransactionListResponse>("/api/transactions?limit=200&offset=0"),
+    apiJson<ApiAlertsListResponse>("/api/alerts"),
+    apiJson<ApiChannelListResponse>("/api/channels"),
+  ]);
+
+  const nextState: Partial<State> = {};
+  const resolvedProducts = products?.products ?? snapshot?.products;
+  const resolvedTransactions = transactions?.transactions ?? snapshot?.transactions;
+  const resolvedAlerts = alerts?.alerts ?? snapshot?.alerts;
+  const resolvedChannels = channels?.channels ?? snapshot?.channels;
+
+  if (resolvedProducts) nextState.products = resolvedProducts as Product[];
+  if (resolvedTransactions) nextState.transactions = resolvedTransactions as Transaction[];
+  if (resolvedAlerts) nextState.alerts = resolvedAlerts as Alert[];
+  if (snapshot?.demand) nextState.demand = snapshot.demand as DemandPoint[];
+  if (resolvedChannels) nextState.channels = resolvedChannels as SalesChannel[];
+  if (snapshot?.staticBaseline) nextState.staticBaseline = snapshot.staticBaseline;
+
+  if (Object.keys(nextState).length > 0) {
+    set(nextState);
+  } else {
+    void get();
+  }
+}
+
 export const useStore = create<State>()(
   persist(
     (set, get) => ({
+      token: null,
       user: null,
       products: seedProducts,
       transactions: [],
       alerts: [],
       demand: generateDemandHistory(),
+      channels: seedChannels,
       staticBaseline: { stockouts: 18, excess: 24 },
       simRunning: true,
       simIntervalMs: 4000,
@@ -178,125 +313,150 @@ export const useStore = create<State>()(
 
       syncFromServer: async () => {
         try {
-          const snapshot = await apiJson<Snapshot>("/api/state");
-          if (!snapshot) return;
-          mergeSnapshot(set, snapshot);
+          await syncSnapshot(set, get);
         } catch {
           // Keep the local prototype working when the Node service is unavailable.
         }
       },
 
-      login: (email, role) => {
-        const name = email.split("@")[0].replace(/[._]/g, " ");
-        set({
-          user: {
-            id: "u-" + Math.random().toString(36).slice(2, 8),
-            email,
-            role,
-            name: name.replace(/\b\w/g, (c) => c.toUpperCase()),
-          },
-        });
-      },
-      logout: () => set({ user: null }),
-
-      addProduct: (p) => {
-        void (async () => {
-          const response = await apiFetch("/api/products", { method: "POST", body: JSON.stringify(p) });
-          if (!response.ok) return;
-          const snapshot = (await response.json().catch(() => null)) as Snapshot | null;
-          if (snapshot) {
-            mergeSnapshot(set, snapshot);
-            return;
-          }
-          await get().syncFromServer();
-        })();
-      },
-      updateProduct: (id, patch) =>
-        void (async () => {
-          const response = await apiFetch(`/api/products/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
-          if (!response.ok) return;
-          const snapshot = (await response.json().catch(() => null)) as Snapshot | null;
-          if (snapshot) {
-            mergeSnapshot(set, snapshot);
-            return;
-          }
-          await get().syncFromServer();
-        })(),
-      deleteProduct: (id) =>
-        void (async () => {
-          const response = await apiFetch(`/api/products/${id}`, { method: "DELETE" });
-          if (!response.ok) return;
-          const snapshot = (await response.json().catch(() => null)) as Snapshot | null;
-          if (snapshot) {
-            mergeSnapshot(set, snapshot);
-            return;
-          }
-          await get().syncFromServer();
-        })(),
-
-      recordTransaction: (productId, qty, type) => {
-        void (async () => {
-          const response = await apiFetch("/api/transactions", {
+      login: async (email, password) => {
+        try {
+          const response = await apiFetch("/api/auth/login", {
             method: "POST",
-            body: JSON.stringify({ productId, qty, type }),
+            body: JSON.stringify({ email, password }),
           });
-          if (!response.ok) return;
-          const snapshot = (await response.json().catch(() => null)) as Snapshot | null;
-          if (snapshot) {
-            mergeSnapshot(set, snapshot);
-            return;
-          }
-          await get().syncFromServer();
-        })();
+          if (!response.ok) return false;
+          const payload = (await response.json()) as ApiLoginResponse;
+          setAuthToken(payload.token);
+          set({
+            token: payload.token,
+            user: {
+              id: payload.user.id,
+              email: payload.user.email,
+              role: payload.user.role,
+              name: payload.user.name,
+            },
+          });
+          await syncSnapshot(set, get);
+          return true;
+        } catch {
+          return false;
+        }
       },
 
-      markAlertsRead: () =>
-        void (async () => {
-          const response = await apiFetch("/api/alerts/read", { method: "POST" });
-          if (!response.ok) return;
-          const snapshot = (await response.json().catch(() => null)) as Snapshot | null;
-          if (snapshot) {
-            mergeSnapshot(set, snapshot);
-            return;
-          }
-          await get().syncFromServer();
-        })(),
-
-      tickSimulation: () => {
-        void (async () => {
-          const response = await apiFetch("/api/tick", { method: "POST" });
-          if (!response.ok) return;
-          const snapshot = (await response.json().catch(() => null)) as Snapshot | null;
-          if (snapshot) {
-            mergeSnapshot(set, snapshot);
-            return;
-          }
-          await get().syncFromServer();
-        })();
+      logout: () => {
+        setAuthToken(null);
+        set({ token: null, user: null });
       },
 
-      bulkImport: (rows) => {
-        void (async () => {
-          for (const row of rows) {
-            await apiFetch("/api/products", { method: "POST", body: JSON.stringify(row) });
-          }
-          await get().syncFromServer();
-        })();
+      addProduct: async (product) => {
+        const response = await apiFetch("/api/products", {
+          method: "POST",
+          body: JSON.stringify(product),
+        });
+        if (!response.ok) return;
+        await syncSnapshot(set, get);
       },
 
+      updateProduct: async (id, patch) => {
+        const response = await apiFetch(`/api/products/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify(patch),
+        });
+        if (!response.ok) return;
+        await syncSnapshot(set, get);
+      },
 
-      resetSeed: () =>
-        void (async () => {
-          const response = await apiFetch("/api/reset", { method: "POST" });
-          if (!response.ok) return;
-          const snapshot = (await response.json().catch(() => null)) as Snapshot | null;
-          if (snapshot) {
-            mergeSnapshot(set, snapshot);
-            return;
-          }
-          await get().syncFromServer();
-        })(),
+      deleteProduct: async (id) => {
+        const response = await apiFetch(`/api/products/${id}`, { method: "DELETE" });
+        if (!response.ok) return;
+        await syncSnapshot(set, get);
+      },
+
+      recordTransaction: async (productId, qty, type, channelId) => {
+        const response = await apiFetch("/api/transactions", {
+          method: "POST",
+          body: JSON.stringify({ productId, qty, type, channelId }),
+        });
+        if (!response.ok) return;
+        await syncSnapshot(set, get);
+      },
+
+      markAlertsRead: async (ids) => {
+        const response = await apiFetch("/api/alerts/read", {
+          method: "POST",
+          body: JSON.stringify(ids?.length ? { ids } : {}),
+        });
+        if (!response.ok) return;
+        const payload = (await response.json().catch(() => null)) as ApiAlertsReadResponse | null;
+        if (payload?.snapshot) {
+          mergeSnapshot(set, payload.snapshot as Snapshot);
+          return;
+        }
+        await syncSnapshot(set, get);
+      },
+
+      tickSimulation: async (seed) => {
+        const response = await apiFetch("/api/tick", {
+          method: "POST",
+          body: seed !== undefined ? JSON.stringify({ seed }) : undefined,
+        });
+        if (!response.ok) return;
+        await syncSnapshot(set, get);
+      },
+
+      bulkImport: async (rows) => {
+        const response = await apiFetch("/api/import", {
+          method: "POST",
+          body: JSON.stringify({ products: rows }),
+        });
+        if (!response.ok) return;
+        await syncSnapshot(set, get);
+      },
+
+      resetSeed: async () => {
+        const response = await apiFetch("/api/reset", { method: "POST" });
+        if (!response.ok) return;
+        await syncSnapshot(set, get);
+      },
+
+      loadChannels: async () => {
+        const payload = await apiJson<ApiChannelListResponse>("/api/channels");
+        if (!payload) return;
+        set({ channels: payload.channels });
+      },
+
+      createChannel: async (channel) => {
+        const response = await apiFetch("/api/channels", {
+          method: "POST",
+          body: JSON.stringify(channel),
+        });
+        if (!response.ok) return;
+        await syncSnapshot(set, get);
+      },
+
+      updateChannel: async (id, patch) => {
+        const response = await apiFetch(`/api/channels/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify(patch),
+        });
+        if (!response.ok) return;
+        await syncSnapshot(set, get);
+      },
+
+      deleteChannel: async (id) => {
+        const response = await apiFetch(`/api/channels/${id}`, { method: "DELETE" });
+        if (!response.ok) return;
+        await syncSnapshot(set, get);
+      },
+
+      can: (capability) => can(get().user?.role ?? "staff", capability),
     }),
-    { name: "inv-store-v1" }
+    {
+      name: "inv-store-v2",
+      onRehydrateStorage: () => (state) => {
+        if (state?.token) setAuthToken(state.token);
+      },
+    }
   )
 );
