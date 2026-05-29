@@ -16,10 +16,14 @@ export const Route = createFileRoute("/_app")({
 
 const titles: Record<string, string> = {
   "/dashboard": "Dashboard",
-  "/inventory": "Inventory",
+  "/inventory": "Product Listing",
+  "/stock-in": "Stock In Log",
+  "/stock-out": "Stock Out (Sold)",
+  "/sales": "Daily Sales Report",
   "/alerts": "Alerts",
   "/reports": "Reports",
   "/import": "Import data",
+  "/settings": "Settings",
   "/profile": "Profile",
 };
 

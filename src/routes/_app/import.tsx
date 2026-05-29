@@ -150,7 +150,7 @@ function ImportPage() {
                     <td className="px-3 py-2">{r.supplier}</td>
                     <td className="px-3 py-2 tabular-nums">{r.quantity}</td>
                     <td className="px-3 py-2 tabular-nums">{r.reorderLevel}</td>
-                    <td className="px-3 py-2 tabular-nums">${r.unitPrice.toFixed(2)}</td>
+                    <td className="px-3 py-2 tabular-nums">₦{r.unitPrice.toLocaleString("en-NG")}</td>
                   </tr>
                 ))}
               </tbody>
