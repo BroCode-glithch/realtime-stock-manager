@@ -25,6 +25,7 @@ function StockOut() {
   const transactions = useStore((s) => s.transactions);
   const channels = useStore((s) => s.channels);
   const recordTransaction = useStore((s) => s.recordTransaction);
+  const currentUser = useStore((s) => s.user);
   const canAdd = can(role, "stock_out");
 
   const [productId, setProductId] = useState(products[0]?.id ?? "");
@@ -126,7 +127,7 @@ function StockOut() {
                     <TableCell>{t.productName}</TableCell>
                     <TableCell className="text-right tabular-nums text-destructive">{t.quantityChanged}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatNaira((p?.unitPrice ?? 0) * -t.quantityChanged)}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{t.userId}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{t.userName ?? (currentUser && t.userId === currentUser.id ? currentUser.name : t.userId)}</TableCell>
                   </TableRow>
                 );
               })}

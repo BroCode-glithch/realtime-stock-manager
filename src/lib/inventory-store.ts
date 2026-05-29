@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { toast } from "sonner";
 
 import {
   apiJson,
@@ -114,6 +115,7 @@ export interface Transaction {
   productId: string;
   productName: string;
   userId: string;
+  userName?: string;
   quantityChanged: number;
   type: "in" | "out" | "adjust";
   channelId?: string | null;
@@ -325,7 +327,10 @@ export const useStore = create<State>()(
             method: "POST",
             body: JSON.stringify({ email, password }),
           });
-          if (!response.ok) return false;
+          if (!response.ok) {
+            toast.error("Login failed. Check your credentials.");
+            return false;
+          }
           const payload = (await response.json()) as ApiLoginResponse;
           setAuthToken(payload.token);
           set({
@@ -338,8 +343,10 @@ export const useStore = create<State>()(
             },
           });
           await syncSnapshot(set, get);
+          toast.success(`Welcome back, ${payload.user.name}!`);
           return true;
         } catch {
+          toast.error("Login failed. Check your credentials.");
           return false;
         }
       },
@@ -347,6 +354,7 @@ export const useStore = create<State>()(
       logout: () => {
         setAuthToken(null);
         set({ token: null, user: null });
+        toast.success("Signed out successfully.");
       },
 
       addProduct: async (product) => {
@@ -354,8 +362,12 @@ export const useStore = create<State>()(
           method: "POST",
           body: JSON.stringify(product),
         });
-        if (!response.ok) return;
+        if (!response.ok) {
+          toast.error("Product creation failed.");
+          return;
+        }
         await syncSnapshot(set, get);
+        toast.success("Product created successfully.");
       },
 
       updateProduct: async (id, patch) => {
@@ -363,23 +375,43 @@ export const useStore = create<State>()(
           method: "PATCH",
           body: JSON.stringify(patch),
         });
-        if (!response.ok) return;
+        if (!response.ok) {
+          toast.error("Product update failed.");
+          return;
+        }
         await syncSnapshot(set, get);
+        toast.success("Product updated successfully.");
       },
 
       deleteProduct: async (id) => {
         const response = await apiFetch(`/api/products/${id}`, { method: "DELETE" });
-        if (!response.ok) return;
+        if (!response.ok) {
+          toast.error("Product deletion failed.");
+          return;
+        }
         await syncSnapshot(set, get);
+        toast.success("Product deleted successfully.");
       },
 
       recordTransaction: async (productId, qty, type, channelId) => {
+        const user = get().user;
         const response = await apiFetch("/api/transactions", {
           method: "POST",
-          body: JSON.stringify({ productId, qty, type, channelId }),
+          body: JSON.stringify({
+            productId,
+            qty,
+            type,
+            channelId,
+            userId: user?.id,
+            userName: user?.name,
+          }),
         });
-        if (!response.ok) return;
+        if (!response.ok) {
+          toast.error("Inventory transaction failed.");
+          return;
+        }
         await syncSnapshot(set, get);
+        toast.success(type === "out" ? "Sale recorded." : type === "in" ? "Stock received." : "Inventory adjusted.");
       },
 
       markAlertsRead: async (ids) => {
@@ -387,13 +419,17 @@ export const useStore = create<State>()(
           method: "POST",
           body: JSON.stringify(ids?.length ? { ids } : {}),
         });
-        if (!response.ok) return;
+        if (!response.ok) {
+          toast.error("Unable to mark alerts read.");
+          return;
+        }
         const payload = (await response.json().catch(() => null)) as ApiAlertsReadResponse | null;
         if (payload?.snapshot) {
           mergeSnapshot(set, payload.snapshot as Snapshot);
-          return;
+        } else {
+          await syncSnapshot(set, get);
         }
-        await syncSnapshot(set, get);
+        toast.success("Alerts marked read.");
       },
 
       tickSimulation: async (seed) => {
@@ -410,14 +446,22 @@ export const useStore = create<State>()(
           method: "POST",
           body: JSON.stringify({ products: rows }),
         });
-        if (!response.ok) return;
+        if (!response.ok) {
+          toast.error("Product import failed.");
+          return;
+        }
         await syncSnapshot(set, get);
+        toast.success("Products imported successfully.");
       },
 
       resetSeed: async () => {
         const response = await apiFetch("/api/reset", { method: "POST" });
-        if (!response.ok) return;
+        if (!response.ok) {
+          toast.error("Reset failed.");
+          return;
+        }
         await syncSnapshot(set, get);
+        toast.success("Data reset successfully.");
       },
 
       loadChannels: async () => {
@@ -431,8 +475,12 @@ export const useStore = create<State>()(
           method: "POST",
           body: JSON.stringify(channel),
         });
-        if (!response.ok) return;
+        if (!response.ok) {
+          toast.error("Failed to create channel.");
+          return;
+        }
         await syncSnapshot(set, get);
+        toast.success("Channel created successfully.");
       },
 
       updateChannel: async (id, patch) => {
@@ -440,14 +488,22 @@ export const useStore = create<State>()(
           method: "PATCH",
           body: JSON.stringify(patch),
         });
-        if (!response.ok) return;
+        if (!response.ok) {
+          toast.error("Failed to update channel.");
+          return;
+        }
         await syncSnapshot(set, get);
+        toast.success("Channel updated successfully.");
       },
 
       deleteChannel: async (id) => {
         const response = await apiFetch(`/api/channels/${id}`, { method: "DELETE" });
-        if (!response.ok) return;
+        if (!response.ok) {
+          toast.error("Failed to delete channel.");
+          return;
+        }
         await syncSnapshot(set, get);
+        toast.success("Channel deleted successfully.");
       },
 
       can: (capability) => can(get().user?.role ?? "staff", capability),

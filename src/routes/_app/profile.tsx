@@ -65,38 +65,37 @@ function Profile() {
           description="Restore the seeded inventory, transactions, alerts, and channels to their default demo state?"
           confirmLabel="Restore"
           destructive={false}
+          tooltipContent={<p>Reset the demo data to its seeded state.</p>}
+          tooltipSide="right"
           onConfirm={reset}
           trigger={
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" className="w-full justify-start gap-2">
-                  <RefreshCcw className="h-4 w-4" /> Restore demo data
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right"><p>Reset the demo data to its seeded state.</p></TooltipContent>
-            </Tooltip>
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-2 transition duration-200 ease-out motion-safe:hover:-translate-y-0.5 motion-safe:hover:scale-[1.01]"
+              style={{ cursor: "pointer" }}
+            >
+              <RefreshCcw className="h-4 w-4" /> Restore demo data
+            </Button>
           }
         />
         <ConfirmActionDialog
           title="Sign out"
           description="Sign out of this device and return to the login screen?"
           confirmLabel="Sign out"
+          tooltipContent={<p>Sign out of the current session.</p>}
+          tooltipSide="right"
           onConfirm={async () => {
             logout();
             navigate({ to: "/login" });
           }}
           trigger={
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="w-full justify-start gap-2 text-destructive hover:text-destructive"
-                >
-                  <LogOut className="h-4 w-4" /> Sign out
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right"><p>Sign out of the current session.</p></TooltipContent>
-            </Tooltip>
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-2 text-destructive transition duration-200 ease-out motion-safe:hover:-translate-y-0.5 motion-safe:hover:scale-[1.01]"
+              style={{ cursor: "pointer" }}
+            >
+              <LogOut className="h-4 w-4" /> Sign out
+            </Button>
           }
         />
       </div>

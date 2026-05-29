@@ -5,6 +5,7 @@ import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianG
 import { Package, AlertTriangle, TrendingDown, DollarSign } from "lucide-react";
 import { useMemo } from "react";
 import { SimControls } from "@/components/SimControls";
+import { formatNaira } from "../../lib/inventory-store";
 
 export const Route = createFileRoute("/_app/dashboard")({
   component: Dashboard,
@@ -35,7 +36,7 @@ function Dashboard() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard icon={<Package className="h-4 w-4" />} label="Total units" value={stats.totalUnits.toLocaleString()} accent="primary" />
-        <StatCard icon={<DollarSign className="h-4 w-4" />} label="Stock value" value={`₦${(stats.value / 1_000_000).toFixed(2)}M`} accent="success" />
+        <StatCard icon={<DollarSign className="h-4 w-4" />} label="Stock value" value={formatNaira(stats.value)} accent="success" />
         <StatCard icon={<TrendingDown className="h-4 w-4" />} label="Low stock" value={String(stats.low)} accent="warning" />
         <StatCard icon={<AlertTriangle className="h-4 w-4" />} label="Active alerts" value={String(stats.activeAlerts)} accent="destructive" />
       </div>

@@ -57,7 +57,7 @@ export function Sidebar() {
               <TooltipTrigger asChild>
                 <Link
                   to={to}
-                  className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                  className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition duration-200 ease-out motion-safe:hover:-translate-y-0.5 motion-safe:hover:scale-[1.01] ${
                     active
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -89,22 +89,21 @@ export function Sidebar() {
           title="Sign out"
           description="Sign out of this device and return to the login screen?"
           confirmLabel="Sign out"
+          tooltipContent={<p>Sign out of this device.</p>}
+          tooltipSide="right"
           onConfirm={async () => {
             logout();
             navigate({ to: "/login" });
           }}
           trigger={
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10">
-                  <LogOut className="h-4 w-4" />
-                  <span className="flex-1 text-left">Logout</span>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right" align="center">
-                <p>Sign out of this device.</p>
-              </TooltipContent>
-            </Tooltip>
+            <button
+              type="button"
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-destructive transition duration-200 ease-out motion-safe:hover:-translate-y-0.5 motion-safe:hover:scale-[1.01] hover:bg-destructive/10"
+              style={{ cursor: "pointer" }}
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="flex-1 text-left">Logout</span>
+            </button>
           }
         />
       </div>

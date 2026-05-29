@@ -108,16 +108,17 @@ function Inventory() {
                               title="Delete product"
                               description={`Delete ${p.name}? This cannot be undone and will remove the product from inventory.`}
                               confirmLabel="Delete"
+                              tooltipContent={<p>Delete product</p>}
+                              tooltipSide="top"
                               onConfirm={() => deleteProduct(p.id)}
                               trigger={
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive">
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top"><p>Delete product</p></TooltipContent>
-                                </Tooltip>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8 text-destructive transition duration-200 ease-out motion-safe:hover:-translate-y-0.5 motion-safe:hover:scale-[1.01]"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
                               }
                             />
                           )}
@@ -170,6 +171,26 @@ function ProductDialog({ mode, product }: { mode: "create" | "edit"; product?: P
     color: product?.color ?? "",
     code: product?.code ?? "",
   });
+  const [generatedCode, setGeneratedCode] = useState("");
+
+  function generateCodeFromName(name: string) {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return "";
+    const segs = parts.slice(0, 3).map((p) => p.replace(/[^a-z0-9]/gi, "").slice(0, 3).toUpperCase());
+    const suffix = String(Date.now()).slice(-3);
+    return segs.join("-") + (suffix ? `-${suffix}` : "");
+  }
+
+  // Auto-generate item code from name unless user overrides it.
+  useEffect(() => {
+    const gen = generateCodeFromName(form.name);
+    if (!gen) return;
+    if (form.code === "" || form.code === generatedCode) {
+      setForm((f) => ({ ...f, code: gen }));
+      setGeneratedCode(gen);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.name]);
 
   const submit = () => {
     if (!form.name) return;

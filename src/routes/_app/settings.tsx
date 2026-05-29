@@ -99,16 +99,18 @@ function Settings() {
                     title="Delete channel"
                     description={`Delete ${c.name}? Existing transactions keep their history, but the channel will be removed from the active list.`}
                     confirmLabel="Delete"
+                    tooltipContent={<p>Delete channel</p>}
+                    tooltipSide="top"
                     onConfirm={() => void deleteChannel(c.id)}
                     trigger={
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" disabled={!canManage}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top"><p>Delete channel</p></TooltipContent>
-                      </Tooltip>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-destructive transition duration-200 ease-out motion-safe:hover:-translate-y-0.5 motion-safe:hover:scale-[1.01]"
+                        disabled={!canManage}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     }
                   />
                 </div>

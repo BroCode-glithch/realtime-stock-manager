@@ -10,6 +10,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type ConfirmActionDialogProps = {
   trigger: React.ReactElement;
@@ -19,6 +20,9 @@ type ConfirmActionDialogProps = {
   cancelLabel?: string;
   onConfirm: () => void | Promise<void>;
   destructive?: boolean;
+  tooltipContent?: React.ReactNode;
+  tooltipSide?: React.ComponentProps<typeof TooltipContent>["side"];
+  tooltipAlign?: React.ComponentProps<typeof TooltipContent>["align"];
 };
 
 export function ConfirmActionDialog({
@@ -29,6 +33,9 @@ export function ConfirmActionDialog({
   cancelLabel = "Cancel",
   onConfirm,
   destructive = true,
+  tooltipContent,
+  tooltipSide,
+  tooltipAlign,
 }: ConfirmActionDialogProps) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -43,9 +50,22 @@ export function ConfirmActionDialog({
     }
   };
 
+  const triggerElement = tooltipContent ? (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <DialogTrigger asChild>{trigger}</DialogTrigger>
+      </TooltipTrigger>
+      <TooltipContent side={tooltipSide ?? "right"} align={tooltipAlign ?? "center"}>
+        {tooltipContent}
+      </TooltipContent>
+    </Tooltip>
+  ) : (
+    <DialogTrigger asChild>{trigger}</DialogTrigger>
+  );
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      {triggerElement}
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>

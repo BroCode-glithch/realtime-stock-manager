@@ -39,7 +39,7 @@ export function BottomNav() {
             <li key={to} className="flex-1">
               <Link
                 to={to}
-                className={`group relative flex flex-col items-center gap-1 py-2.5 text-xs font-medium transition-colors ${
+                className={`group relative flex flex-col items-center gap-1 py-2.5 text-xs font-medium transition duration-200 ease-out motion-safe:hover:-translate-y-0.5 motion-safe:hover:scale-[1.01] ${
                   active ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -60,7 +60,7 @@ export function BottomNav() {
         <li className="flex-1">
           <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
             <SheetTrigger asChild>
-              <button className="w-full flex flex-col items-center gap-1 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground">
+              <button className="w-full flex flex-col items-center gap-1 py-2.5 text-xs font-medium text-muted-foreground transition duration-200 ease-out motion-safe:hover:-translate-y-0.5 motion-safe:hover:scale-[1.01] hover:text-foreground">
                 <MoreHorizontal className="h-5 w-5" strokeWidth={1.8} />
                 <span>More</span>
               </button>
@@ -94,6 +94,7 @@ export function BottomNav() {
                     <button
                       type="button"
                       className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 py-3 text-sm font-medium text-destructive transition-colors hover:bg-destructive/5"
+                      style={{ cursor: "pointer" }}
                       onClick={() => setMoreOpen(false)}
                     >
                       <span className="h-2 w-2 rounded-full bg-destructive" />

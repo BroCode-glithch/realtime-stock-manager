@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 
 import appCss from "../styles.css?url";
 import { SystemPreloader } from "../components/SystemPreloader";
+import { Toaster } from "../components/ui/sonner";
 
 function NotFoundComponent() {
   return (
@@ -116,6 +117,7 @@ function RootShell({ children }: { children: React.ReactNode }) {
       </head>
       <body className="bg-background text-foreground antialiased overflow-x-hidden">
         <SystemPreloader visible={!hydrated || showSplash} />
+        <Toaster />
         {children}
         <Scripts />
       </body>
