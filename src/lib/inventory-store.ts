@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+import { apiJson, apiFetch } from "@/lib/inventory-api";
+
 export type Role = "admin" | "manager" | "staff";
 
 export interface User {
@@ -101,20 +103,6 @@ interface State {
 
 type Snapshot = Pick<State, "products" | "transactions" | "alerts" | "demand" | "staticBaseline">;
 
-async function postSnapshot(path: string, body?: unknown): Promise<Snapshot | null> {
-  try {
-    const response = await fetch(path, {
-      method: "POST",
-      headers: body ? { "content-type": "application/json" } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    if (!response.ok) return null;
-    return (await response.json()) as Snapshot;
-  } catch {
-    return null;
-  }
-}
-
 function mergeSnapshot(setState: (partial: Partial<State>) => void, snapshot: Snapshot) {
   setState(snapshot);
 }
@@ -166,9 +154,8 @@ export const useStore = create<State>()(
 
       syncFromServer: async () => {
         try {
-          const response = await fetch("/api/state");
-          if (!response.ok) return;
-          const snapshot = (await response.json()) as Snapshot;
+          const snapshot = await apiJson<Snapshot>("/api/state");
+          if (!snapshot) return;
           mergeSnapshot(set, snapshot);
         } catch {
           // Keep the local prototype working when the Node service is unavailable.
@@ -190,136 +177,100 @@ export const useStore = create<State>()(
 
       addProduct: (p) => {
         void (async () => {
-          const snapshot = await postSnapshot("/api/products", p);
+          const response = await apiFetch("/api/products", { method: "POST", body: JSON.stringify(p) });
+          if (!response.ok) return;
+          const snapshot = (await response.json().catch(() => null)) as Snapshot | null;
           if (snapshot) {
             mergeSnapshot(set, snapshot);
             return;
           }
-
-          const product: Product = { ...p, id: "p-" + Math.random().toString(36).slice(2, 8) };
-          set((s) => ({ products: [...s.products, product] }));
-          get().tickSimulation();
+          await get().syncFromServer();
         })();
       },
       updateProduct: (id, patch) =>
         void (async () => {
-          const snapshot = await postSnapshot(`/api/products/${id}`, patch);
+          const response = await apiFetch(`/api/products/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
+          if (!response.ok) return;
+          const snapshot = (await response.json().catch(() => null)) as Snapshot | null;
           if (snapshot) {
             mergeSnapshot(set, snapshot);
             return;
           }
-
-          set((s) => ({ products: s.products.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
+          await get().syncFromServer();
         })(),
       deleteProduct: (id) =>
         void (async () => {
-          const snapshot = await postSnapshot(`/api/products/${id}/delete`);
+          const response = await apiFetch(`/api/products/${id}`, { method: "DELETE" });
+          if (!response.ok) return;
+          const snapshot = (await response.json().catch(() => null)) as Snapshot | null;
           if (snapshot) {
             mergeSnapshot(set, snapshot);
             return;
           }
-
-          set((s) => ({ products: s.products.filter((p) => p.id !== id) }));
+          await get().syncFromServer();
         })(),
 
       recordTransaction: (productId, qty, type) => {
         void (async () => {
-          const snapshot = await postSnapshot("/api/transactions", { productId, qty, type });
+          const response = await apiFetch("/api/transactions", {
+            method: "POST",
+            body: JSON.stringify({ productId, qty, type }),
+          });
+          if (!response.ok) return;
+          const snapshot = (await response.json().catch(() => null)) as Snapshot | null;
           if (snapshot) {
             mergeSnapshot(set, snapshot);
             return;
           }
-
-          const product = get().products.find((p) => p.id === productId);
-          if (!product) return;
-          const delta = type === "out" ? -Math.abs(qty) : Math.abs(qty);
-          const tx: Transaction = {
-            id: "t-" + Math.random().toString(36).slice(2, 8),
-            productId,
-            productName: product.name,
-            userId: get().user?.id ?? "system",
-            quantityChanged: delta,
-            type,
-            timestamp: Date.now(),
-          };
-          set((s) => ({
-            products: s.products.map((p) =>
-              p.id === productId ? { ...p, quantity: Math.max(0, p.quantity + delta) } : p
-            ),
-            transactions: [tx, ...s.transactions].slice(0, 200),
-          }));
-          get().tickSimulation();
+          await get().syncFromServer();
         })();
       },
 
       markAlertsRead: () =>
         void (async () => {
-          const snapshot = await postSnapshot("/api/alerts/read");
+          const response = await apiFetch("/api/alerts/read", { method: "POST" });
+          if (!response.ok) return;
+          const snapshot = (await response.json().catch(() => null)) as Snapshot | null;
           if (snapshot) {
             mergeSnapshot(set, snapshot);
             return;
           }
-
-          set((s) => ({ alerts: s.alerts.map((a) => ({ ...a, read: true })) }));
+          await get().syncFromServer();
         })(),
 
       tickSimulation: () => {
         void (async () => {
-          const snapshot = await postSnapshot("/api/tick");
+          const response = await apiFetch("/api/tick", { method: "POST" });
+          if (!response.ok) return;
+          const snapshot = (await response.json().catch(() => null)) as Snapshot | null;
           if (snapshot) {
             mergeSnapshot(set, snapshot);
             return;
           }
-
-          const { products, demand } = get();
-          const target = products[Math.floor(Math.random() * products.length)];
-          if (!target) return;
-          const consumed = Math.min(target.quantity, Math.floor(Math.random() * 3) + 1);
-          const today = new Date();
-          const day = `${today.getMonth() + 1}/${today.getDate()}`;
-          const newDemand = [...demand];
-          const idx = newDemand.findIndex((d) => d.productId === target.id && d.day === day);
-          if (idx >= 0) newDemand[idx] = { ...newDemand[idx], demand: newDemand[idx].demand + consumed };
-          else newDemand.push({ productId: target.id, day, demand: consumed });
-
-          const updatedProducts = products.map((p) =>
-            p.id === target.id ? { ...p, quantity: Math.max(0, p.quantity - consumed) } : p
-          );
-          const newAlerts = evalAlerts(updatedProducts, newDemand);
-          set((s) => ({
-            products: updatedProducts,
-            demand: newDemand.slice(-500),
-            alerts: [...newAlerts, ...s.alerts].slice(0, 100),
-          }));
+          await get().syncFromServer();
         })();
       },
 
       bulkImport: (rows) => {
-        const newProducts: Product[] = rows.map((r) => ({
-          ...r,
-          id: "p-" + Math.random().toString(36).slice(2, 8),
-        }));
-        set((s) => ({
-          products: [...s.products, ...newProducts],
-          alerts: [...evalAlerts([...s.products, ...newProducts], s.demand), ...s.alerts].slice(0, 100),
-        }));
+        void (async () => {
+          for (const row of rows) {
+            await apiFetch("/api/products", { method: "POST", body: JSON.stringify(row) });
+          }
+          await get().syncFromServer();
+        })();
       },
 
 
       resetSeed: () =>
         void (async () => {
-          const snapshot = await postSnapshot("/api/reset");
+          const response = await apiFetch("/api/reset", { method: "POST" });
+          if (!response.ok) return;
+          const snapshot = (await response.json().catch(() => null)) as Snapshot | null;
           if (snapshot) {
             mergeSnapshot(set, snapshot);
             return;
           }
-
-          set({
-            products: seedProducts,
-            transactions: [],
-            alerts: [],
-            demand: generateDemandHistory(),
-          });
+          await get().syncFromServer();
         })(),
     }),
     { name: "inv-store-v1" }

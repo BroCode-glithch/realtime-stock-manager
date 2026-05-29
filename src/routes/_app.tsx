@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { BottomNav } from "@/components/BottomNav";
 import { Sidebar } from "@/components/AppShell";
 import { useStore } from "@/lib/inventory-store";
+import { startInventoryRealtime } from "@/lib/inventory-realtime";
 
 export const Route = createFileRoute("/_app")({
   component: AppLayout,
@@ -23,7 +24,6 @@ const titles: Record<string, string> = {
 };
 
 function AppLayout() {
-  const tick = useStore((s) => s.tickSimulation);
   const syncFromServer = useStore((s) => s.syncFromServer);
   const running = useStore((s) => s.simRunning);
   const intervalMs = useStore((s) => s.simIntervalMs);
@@ -35,10 +35,15 @@ function AppLayout() {
   }, [syncFromServer]);
 
   useEffect(() => {
+    const stop = startInventoryRealtime();
+    return stop;
+  }, []);
+
+  useEffect(() => {
     if (!running) return;
-    const id = setInterval(() => tick(), intervalMs);
+    const id = setInterval(() => void syncFromServer(), intervalMs);
     return () => clearInterval(id);
-  }, [tick, running, intervalMs]);
+  }, [running, intervalMs, syncFromServer]);
 
   return (
     <div className="min-h-screen bg-background flex">
