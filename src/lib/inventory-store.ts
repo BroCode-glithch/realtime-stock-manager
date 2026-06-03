@@ -33,6 +33,7 @@ export type Capability =
   | "view_sales"
   | "view_alerts"
   | "view_reports"
+  | "view_system_docs"
   | "view_guide"
   | "import_products"
   | "manage_channels"
@@ -51,6 +52,7 @@ const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
     "view_sales",
     "view_alerts",
     "view_reports",
+    "view_system_docs",
     "view_guide",
     "import_products",
     "manage_channels",
@@ -67,6 +69,7 @@ const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
     "view_sales",
     "view_alerts",
     "view_reports",
+    "view_system_docs",
     "view_guide",
     "import_products",
     "manage_channels",

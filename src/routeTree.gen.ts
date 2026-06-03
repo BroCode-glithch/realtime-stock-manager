@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppSystemDocumentationRouteImport } from './routes/_app/system-documentation'
 import { Route as AppStockOutRouteImport } from './routes/_app/stock-out'
 import { Route as AppStockInRouteImport } from './routes/_app/stock-in'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
@@ -37,6 +38,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AppSystemDocumentationRoute = AppSystemDocumentationRouteImport.update({
+  id: '/system-documentation',
+  path: '/system-documentation',
+  getParentRoute: () => AppRoute,
 } as any)
 const AppStockOutRoute = AppStockOutRouteImport.update({
   id: '/stock-out',
@@ -108,6 +114,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AppSettingsRoute
   '/stock-in': typeof AppStockInRoute
   '/stock-out': typeof AppStockOutRoute
+  '/system-documentation': typeof AppSystemDocumentationRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -123,6 +130,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AppSettingsRoute
   '/stock-in': typeof AppStockInRoute
   '/stock-out': typeof AppStockOutRoute
+  '/system-documentation': typeof AppSystemDocumentationRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -140,6 +148,7 @@ export interface FileRoutesById {
   '/_app/settings': typeof AppSettingsRoute
   '/_app/stock-in': typeof AppStockInRoute
   '/_app/stock-out': typeof AppStockOutRoute
+  '/_app/system-documentation': typeof AppSystemDocumentationRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -157,6 +166,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/stock-in'
     | '/stock-out'
+    | '/system-documentation'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -172,6 +182,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/stock-in'
     | '/stock-out'
+    | '/system-documentation'
   id:
     | '__root__'
     | '/'
@@ -188,6 +199,7 @@ export interface FileRouteTypes {
     | '/_app/settings'
     | '/_app/stock-in'
     | '/_app/stock-out'
+    | '/_app/system-documentation'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -218,6 +230,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_app/system-documentation': {
+      id: '/_app/system-documentation'
+      path: '/system-documentation'
+      fullPath: '/system-documentation'
+      preLoaderRoute: typeof AppSystemDocumentationRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/stock-out': {
       id: '/_app/stock-out'
@@ -311,6 +330,7 @@ interface AppRouteChildren {
   AppSettingsRoute: typeof AppSettingsRoute
   AppStockInRoute: typeof AppStockInRoute
   AppStockOutRoute: typeof AppStockOutRoute
+  AppSystemDocumentationRoute: typeof AppSystemDocumentationRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -325,6 +345,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsRoute: AppSettingsRoute,
   AppStockInRoute: AppStockInRoute,
   AppStockOutRoute: AppStockOutRoute,
+  AppSystemDocumentationRoute: AppSystemDocumentationRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

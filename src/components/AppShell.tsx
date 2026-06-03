@@ -4,6 +4,7 @@ import {
   LayoutDashboard, Package, BellRing, BarChart3, User, Upload, Boxes,
   ArrowDownToLine, ArrowUpFromLine, Receipt, Settings as SettingsIcon, LogOut,
   Search, SunMedium, MoonStar,
+  FileText,
 } from "lucide-react";
 import { can, useStore, type Capability, type Role } from "../lib/inventory-store";
 import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
@@ -19,6 +20,7 @@ export const navItems = [
   { to: "/stock-out", label: "Stock Out", icon: ArrowUpFromLine, capability: "stock_out" },
   { to: "/sales", label: "Sales", icon: Receipt, capability: "view_sales" },
   { to: "/alerts", label: "Alerts", icon: BellRing, capability: "view_alerts" },
+  { to: "/system-documentation", label: "System Docs", icon: FileText, capability: "view_system_docs" },
   { to: "/reports", label: "Reports", icon: BarChart3, capability: "view_reports" },
   { to: "/guide", label: "Guide", icon: Boxes, capability: "view_guide" },
   { to: "/import", label: "Import", icon: Upload, capability: "import_products" },
