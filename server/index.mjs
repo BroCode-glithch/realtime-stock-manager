@@ -31,12 +31,29 @@ function generateDemandHistory() {
   return points;
 }
 
-function evalAlerts(products, demand) {
+const defaultAlertSettings = {
+  demandWindowDays: 7,
+  demandMultiplier: 3,
+  overstockMultiplier: 5,
+  overstockMinUnits: 50,
+};
+
+function sanitizeAlertSettings(input = {}) {
+  const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+  return {
+    demandWindowDays: clamp(Math.round(Number(input.demandWindowDays ?? defaultAlertSettings.demandWindowDays)), 1, 30),
+    demandMultiplier: clamp(Number(input.demandMultiplier ?? defaultAlertSettings.demandMultiplier), 0.5, 20),
+    overstockMultiplier: clamp(Number(input.overstockMultiplier ?? defaultAlertSettings.overstockMultiplier), 1, 30),
+    overstockMinUnits: clamp(Math.round(Number(input.overstockMinUnits ?? defaultAlertSettings.overstockMinUnits)), 0, 100000),
+  };
+}
+
+function evalAlerts(products, demand, alertSettings) {
   const alerts = [];
   for (const product of products) {
-    const recent = demand.filter((entry) => entry.productId === product.id).slice(-7);
+    const recent = demand.filter((entry) => entry.productId === product.id).slice(-alertSettings.demandWindowDays);
     const avg = recent.reduce((total, entry) => total + entry.demand, 0) / Math.max(1, recent.length);
-    const adaptiveThreshold = Math.max(product.reorderLevel, Math.round(avg * 3));
+    const adaptiveThreshold = Math.max(product.reorderLevel, Math.round(avg * alertSettings.demandMultiplier));
     if (product.quantity <= adaptiveThreshold) {
       alerts.push({
         id: `a-${product.id}-${Date.now()}-${randomUUID().slice(0, 8)}`,
@@ -47,7 +64,7 @@ function evalAlerts(products, demand) {
         timestamp: Date.now(),
         read: false,
       });
-    } else if (product.quantity > adaptiveThreshold * 5 && product.quantity > 50) {
+    } else if (product.quantity > adaptiveThreshold * alertSettings.overstockMultiplier && product.quantity > alertSettings.overstockMinUnits) {
       alerts.push({
         id: `a-${product.id}-${Date.now()}-${randomUUID().slice(0, 8)}`,
         productId: product.id,
@@ -65,11 +82,13 @@ function evalAlerts(products, demand) {
 function createState() {
   const products = seedProducts.map((product) => ({ ...product }));
   const demand = generateDemandHistory();
+  const alertSettings = sanitizeAlertSettings(defaultAlertSettings);
   return {
     products,
     transactions: [],
-    alerts: evalAlerts(products, demand),
+    alerts: evalAlerts(products, demand, alertSettings),
     demand,
+    alertSettings,
     staticBaseline: { stockouts: 18, excess: 24 },
   };
 }
@@ -82,6 +101,7 @@ function snapshot() {
     transactions: state.transactions,
     alerts: state.alerts,
     demand: state.demand,
+    alertSettings: state.alertSettings,
     staticBaseline: state.staticBaseline,
   };
 }
@@ -117,7 +137,7 @@ function readBody(req) {
 }
 
 function recalcAlerts() {
-  state = { ...state, alerts: evalAlerts(state.products, state.demand) };
+  state = { ...state, alerts: evalAlerts(state.products, state.demand, state.alertSettings) };
 }
 
 function applyTick() {
@@ -139,7 +159,7 @@ function applyTick() {
     ...state,
     products,
     demand: demand.slice(-500),
-    alerts: [...evalAlerts(products, demand), ...state.alerts].slice(0, 100),
+    alerts: [...evalAlerts(products, demand, state.alertSettings), ...state.alerts].slice(0, 100),
   };
 }
 
@@ -234,6 +254,19 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/tick") {
       applyTick();
       json(res, 200, snapshot());
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/settings") {
+      json(res, 200, { alertSettings: state.alertSettings });
+      return;
+    }
+
+    if (req.method === "PATCH" && url.pathname === "/api/settings") {
+      const body = await readBody(req);
+      state = { ...state, alertSettings: sanitizeAlertSettings(body ?? {}) };
+      recalcAlerts();
+      json(res, 200, { alertSettings: state.alertSettings, snapshot: snapshot() });
       return;
     }
 

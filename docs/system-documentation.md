@@ -59,44 +59,107 @@ Data model (short reference)
 - DemandPoint: { productId, day, demand }
 
 Decision logic and formulas (plain text)
-The alert engine uses recent demand to compute an adaptive reorder threshold for each product. The algorithm is intentionally simple and explicit so you can explain it to stakeholders.
+The alert engine uses configurable ratios managed by admins/managers from Settings. Ratios are applied against each product's `reorderLevel`.
 
-1) Compute recent average demand: gather the most recent n daily `demand` values for the product (prototype uses the last 7 days). Compute the arithmetic mean:
+1) Compute thresholds from settings:
 
-   avg = (d1 + d2 + ... + dn) / n
+   lowStockThreshold = reorderLevel * lowStockRatio
+   reorderThreshold = reorderLevel * reorderRatio
+   overstockThreshold = reorderLevel * overstockRatio
 
-2) Compute adaptive threshold:
-
-   adaptiveThreshold = max(reorderLevel, round(avg * 3))
-
-   This guarantees the threshold cannot be smaller than the product's configured `reorderLevel`. The multiplier `3` was chosen so that reorder suggestions reflect roughly a short runway based on demand.
-
-3) Alert rules:
-- If quantity <= adaptiveThreshold: create an alert. The alert type is `low_stock` if quantity <= reorderLevel; otherwise type `reorder`.
-- Else, if quantity > adaptiveThreshold * 5 and quantity > 50: create an `overstock` alert.
+2) Alert rules:
+- If `enableReorder` is true and quantity <= reorderThreshold, raise `reorder`.
+- Else if `enableLowStock` is true and quantity <= lowStockThreshold, raise `low_stock`.
+- Else if `enableOverstock` is true and quantity >= overstockThreshold, raise `overstock`.
 
 Pseudocode (human-readable):
 
-   avg = mean(recent_daily_demand)
-   adaptiveThreshold = max(reorderLevel, round(avg * 3))
-   if quantity <= adaptiveThreshold:
-       if quantity <= reorderLevel:
-           alert = low_stock
-       else:
-           alert = reorder
-       create alert with message including current quantity and avg
-   else if quantity > adaptiveThreshold * 5 and quantity > 50:
+   low = reorderLevel * lowStockRatio
+   reorder = reorderLevel * reorderRatio
+   over = reorderLevel * overstockRatio
+   if enableReorder and quantity <= reorder:
+       create reorder alert
+   else if enableLowStock and quantity <= low:
+       create low_stock alert
+   else if enableOverstock and quantity >= over:
        create overstock alert
 
 Notes on the algorithm
-- The adaptive threshold ties reorder recommendations to recent demand; if demand increases the threshold becomes larger and triggers earlier reorder suggestions. The threshold is conservative where `reorderLevel` is set higher than demand-derived suggestions.
-- The `overstock` condition is intended to highlight unusually large stock that far exceeds expected needs (5× adaptiveThreshold and >50 units) — adjust these multipliers to suit your domain.
+- The backend clamps and normalizes incoming ratio values before use.
+- Backend guarantee: `reorderRatio` is never allowed to exceed `lowStockRatio`.
+- Alert classes can be enabled/disabled independently via Settings.
 
 Alerts lifecycle and API
 - Alerts are produced when the server snapshot (or local simulation) is generated. The UI shows alerts from the snapshot. Marking alerts read calls `/api/alerts/read` with optional `ids` payload. Successful calls return a snapshot which the client merges with local state.
 
 Transactions and syncing
 - All transaction writes are POSTed to `/api/transactions`. The client then synchronises using `/api/state` or product/transaction endpoints to retrieve the latest snapshot. This snapshot contains canonical `products`, `transactions`, `alerts`, `demand` and `channels`.
+
+Frontend settings contract update (2026-06-03)
+
+Backend requirement status
+- [x] `GET /api/settings` returns server-owned `alertSettings`
+- [x] `PATCH /api/settings` supports partial updates (admin/manager only)
+- [x] Clamping enforced: `lowStockRatio` 0..2, `reorderRatio` 0..1.5, `overstockRatio` 1..5
+- [x] Constraint enforced: `reorderRatio <= lowStockRatio`
+- [x] Alerts are recalculated immediately after settings update
+- [x] PATCH response includes updated `alertSettings`, refreshed `snapshot`, latest `audit`
+- [x] `GET /api/settings/audit?limit&offset` returns paginated audit entries (admin/manager only)
+- [x] `/api/state` includes `alertSettings` for frontend hydration
+- [x] Settings and audit persist across restarts (`data/settings-store.json` or `SETTINGS_STORE_PATH`)
+
+Endpoints and payloads
+
+1) `GET /api/settings`
+- Returns current server-owned settings as:
+
+```json
+{
+    "alertSettings": {
+        "lowStockRatio": 1,
+        "reorderRatio": 0.5,
+        "overstockRatio": 2,
+        "enableLowStock": true,
+        "enableReorder": true,
+        "enableOverstock": true
+    }
+}
+```
+
+2) `PATCH /api/settings` (admin/manager only)
+- Accepts any subset of:
+    - `lowStockRatio`
+    - `reorderRatio`
+    - `overstockRatio`
+    - `enableLowStock`
+    - `enableReorder`
+    - `enableOverstock`
+- Returns updated settings + refreshed snapshot + latest audit entry.
+
+3) `GET /api/settings/audit?limit=50&offset=0` (admin/manager only)
+- Returns paginated settings change history:
+    - `entries[]`
+    - `total`
+    - `limit`
+    - `offset`
+
+Important frontend behavior
+- Always hydrate `alertSettings` from `/api/state` (or `GET /api/settings` when explicitly refreshing settings).
+- After `PATCH /api/settings`, prefer server response values rather than local assumptions because backend clamps values.
+- Numeric clamp rules:
+    - `lowStockRatio`: 0..2
+    - `reorderRatio`: 0..1.5
+    - `overstockRatio`: 1..5
+    - If `reorderRatio` exceeds `lowStockRatio`, backend reduces it to `lowStockRatio`.
+
+Authz behavior
+- `PATCH /api/settings` and `GET /api/settings/audit` require JWT role `admin` or `manager`.
+- `staff` should receive `403` for settings update and audit access.
+
+Persistence behavior
+- Alert settings and settings audit history persist across process restarts.
+- Default storage path: `data/settings-store.json`.
+- Override path via `SETTINGS_STORE_PATH`.
 
 Simulation and testing hooks
 - The prototype includes a tick endpoint `/api/tick` which generates synthetic transactions to exercise the alert engine and reporting. Use the simulation controls in the dashboard when testing.
@@ -120,11 +183,11 @@ flowchart TD
   RecordTx[Record Transaction → POST /api/transactions]
   Sync[Sync snapshot ← /api/state]
   UpdateStock[Update product quantity from snapshot]
-  Demand[Use recent demand points]
-  Compute[Compute avg demand and adaptiveThreshold]
-  Compare{quantity <= adaptiveThreshold?}
-  LowAlert[Generate low_stock or reorder alert]
-  OverstockCond{quantity > adaptiveThreshold * 5 AND quantity > 50?}
+    Demand[Load alert settings ratios]
+    Compute[Compute ratio thresholds from reorderLevel]
+    Compare{quantity <= reorderThreshold OR lowStockThreshold?}
+    LowAlert[Generate reorder / low_stock by toggle]
+    OverstockCond{quantity >= overstockThreshold AND overstock enabled?}
   Overstock[Generate overstock alert]
   NoAlert[No alert generated]
   Alerts[Show alerts; user can mark read → POST /api/alerts/read]

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from "@/components/ui/accordion";
@@ -26,20 +27,51 @@ const ICONS = {
   mobile: Smartphone,
 };
 
+const DEFAULT_ALERT_SETTINGS = {
+  lowStockRatio: 1,
+  reorderRatio: 0.5,
+  overstockRatio: 2,
+  enableLowStock: true,
+  enableReorder: true,
+  enableOverstock: true,
+};
+
 function Settings() {
   const role = useStore((s) => s.user?.role ?? "staff");
   const canManage = can(role, "manage_channels");
   const channels = useStore((s) => s.channels);
+  const alertSettings = useStore((s) => s.alertSettings);
   const loadChannels = useStore((s) => s.loadChannels);
+  const loadAlertSettings = useStore((s) => s.loadAlertSettings);
+  const loadSettingsAudit = useStore((s) => s.loadSettingsAudit);
+  const saveAlertSettings = useStore((s) => s.saveAlertSettings);
+  const settingsAudit = useStore((s) => s.settingsAudit);
   const createChannel = useStore((s) => s.createChannel);
   const updateChannel = useStore((s) => s.updateChannel);
   const deleteChannel = useStore((s) => s.deleteChannel);
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState<SalesChannel["type"]>("online");
+  const [lowStockRatio, setLowStockRatio] = useState(String(alertSettings.lowStockRatio));
+  const [reorderRatio, setReorderRatio] = useState(String(alertSettings.reorderRatio));
+  const [overstockRatio, setOverstockRatio] = useState(String(alertSettings.overstockRatio));
+  const [enableLowStock, setEnableLowStock] = useState(alertSettings.enableLowStock);
+  const [enableReorder, setEnableReorder] = useState(alertSettings.enableReorder);
+  const [enableOverstock, setEnableOverstock] = useState(alertSettings.enableOverstock);
 
   useEffect(() => {
     void loadChannels();
-  }, [loadChannels]);
+    void loadAlertSettings();
+    void loadSettingsAudit(10, 0);
+  }, [loadChannels, loadAlertSettings, loadSettingsAudit]);
+
+  useEffect(() => {
+    setLowStockRatio(String(alertSettings.lowStockRatio));
+    setReorderRatio(String(alertSettings.reorderRatio));
+    setOverstockRatio(String(alertSettings.overstockRatio));
+    setEnableLowStock(alertSettings.enableLowStock);
+    setEnableReorder(alertSettings.enableReorder);
+    setEnableOverstock(alertSettings.enableOverstock);
+  }, [alertSettings]);
 
   const toggle = (channel: SalesChannel) =>
     void updateChannel(channel.id, { enabled: !channel.enabled });
@@ -50,8 +82,153 @@ function Settings() {
     setNewName("");
   };
 
+  const onSaveAlertSettings = () => {
+    void saveAlertSettings({
+      lowStockRatio: Number(lowStockRatio),
+      reorderRatio: Number(reorderRatio),
+      overstockRatio: Number(overstockRatio),
+      enableLowStock,
+      enableReorder,
+      enableOverstock,
+    });
+  };
+
+  const onResetAlertSettings = () => {
+    setLowStockRatio(String(DEFAULT_ALERT_SETTINGS.lowStockRatio));
+    setReorderRatio(String(DEFAULT_ALERT_SETTINGS.reorderRatio));
+    setOverstockRatio(String(DEFAULT_ALERT_SETTINGS.overstockRatio));
+    setEnableLowStock(DEFAULT_ALERT_SETTINGS.enableLowStock);
+    setEnableReorder(DEFAULT_ALERT_SETTINGS.enableReorder);
+    setEnableOverstock(DEFAULT_ALERT_SETTINGS.enableOverstock);
+    void saveAlertSettings(DEFAULT_ALERT_SETTINGS);
+  };
+
   return (
     <div className="space-y-5">
+      <Card className="p-5">
+        <div className="flex items-start gap-3">
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary">
+            <Check className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="font-semibold">Alert and Threshold Rules</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Configure how sensitive the low-stock and overstock engine should be. Only admins and managers can edit these values.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Low stock ratio</Label>
+            <Input
+              type="number"
+              min={0}
+              max={2}
+              step={0.1}
+              value={lowStockRatio}
+              onChange={(e) => setLowStockRatio(e.target.value)}
+              disabled={!canManage}
+            />
+            <p className="text-xs text-muted-foreground">Threshold: quantity &lt;= reorderLevel * lowStockRatio.</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Reorder ratio</Label>
+            <Input
+              type="number"
+              min={0}
+              max={1.5}
+              step={0.1}
+              value={reorderRatio}
+              onChange={(e) => setReorderRatio(e.target.value)}
+              disabled={!canManage}
+            />
+            <p className="text-xs text-muted-foreground">Threshold: quantity &lt;= reorderLevel * reorderRatio (capped to lowStockRatio).</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Overstock ratio</Label>
+            <Input
+              type="number"
+              min={1}
+              max={5}
+              step={0.1}
+              value={overstockRatio}
+              onChange={(e) => setOverstockRatio(e.target.value)}
+              disabled={!canManage}
+            />
+            <p className="text-xs text-muted-foreground">Threshold: quantity &gt;= reorderLevel * overstockRatio.</p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+            <Label className="text-xs">Enable low stock alerts</Label>
+            <Switch checked={enableLowStock} onCheckedChange={setEnableLowStock} disabled={!canManage} />
+          </div>
+          <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+            <Label className="text-xs">Enable reorder alerts</Label>
+            <Switch checked={enableReorder} onCheckedChange={setEnableReorder} disabled={!canManage} />
+          </div>
+          <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+            <Label className="text-xs">Enable overstock alerts</Label>
+            <Switch checked={enableOverstock} onCheckedChange={setEnableOverstock} disabled={!canManage} />
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">
+            Active profile: low={alertSettings.lowStockRatio}, reorder={alertSettings.reorderRatio}, overstock={alertSettings.overstockRatio}
+            {" "}(low/reorder/overstock toggles: {String(alertSettings.enableLowStock)}/{String(alertSettings.enableReorder)}/{String(alertSettings.enableOverstock)}).
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={onResetAlertSettings} disabled={!canManage}>Reset defaults</Button>
+            <Button onClick={onSaveAlertSettings} disabled={!canManage}>Save alert settings</Button>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-border bg-secondary/25 p-4">
+          <h3 className="text-sm font-semibold">What each setting does</h3>
+          <div className="mt-3 space-y-2 text-xs text-muted-foreground">
+            <p>
+              <strong>Low stock ratio:</strong> this controls when low-stock alerts trigger. If a product has reorder level 100 and low stock ratio is 1,
+              low-stock can trigger at 100 units and below.
+            </p>
+            <p>
+              <strong>Reorder ratio:</strong> this controls reorder alerts and is clamped by backend so it cannot exceed low stock ratio.
+              This keeps reorder logic consistent with low-stock boundaries.
+            </p>
+            <p>
+              <strong>Overstock ratio:</strong> this controls when overstock alerts trigger. Lower values trigger overstock alerts earlier;
+              higher values make them less frequent.
+            </p>
+            <p>
+              <strong>Enable toggles:</strong> each alert class can be enabled or disabled independently. Disabling a class prevents
+              backend from issuing that alert type.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-border bg-secondary/25 p-4">
+          <h3 className="text-sm font-semibold">Recent settings changes</h3>
+          <div className="mt-3 space-y-2 text-xs text-muted-foreground">
+            {settingsAudit.length === 0 && <p>No audit entries yet.</p>}
+            {settingsAudit.slice(0, 5).map((entry) => (
+              <div key={entry.id} className="rounded-md border border-border bg-background px-3 py-2">
+                <p className="font-medium text-foreground">{entry.changedBy} changed settings</p>
+                <p className="mt-0.5">{new Date(entry.changedAt).toLocaleString()}</p>
+                <p className="mt-1">
+                  low/reorder/overstock: {entry.previous.lowStockRatio}/{entry.previous.reorderRatio}/{entry.previous.overstockRatio}
+                  {" → "}
+                  {entry.next.lowStockRatio}/{entry.next.reorderRatio}/{entry.next.overstockRatio}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
+
       <Card className="p-5">
         <div className="flex items-start gap-3">
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary">

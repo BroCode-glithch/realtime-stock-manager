@@ -55,6 +55,23 @@ export type ApiChannel = {
   notes?: string | null;
 };
 
+export type ApiAlertSettings = {
+  lowStockRatio: number;
+  reorderRatio: number;
+  overstockRatio: number;
+  enableLowStock: boolean;
+  enableReorder: boolean;
+  enableOverstock: boolean;
+};
+
+export type ApiSettingsAuditEntry = {
+  id: string;
+  changedAt: number;
+  changedBy: string;
+  previous: ApiAlertSettings;
+  next: ApiAlertSettings;
+};
+
 export type ApiSnapshot = {
   products: ApiProduct[];
   transactions: ApiTransaction[];
@@ -62,6 +79,24 @@ export type ApiSnapshot = {
   demand: ApiDemandPoint[];
   channels: ApiChannel[];
   staticBaseline: { stockouts: number; excess: number };
+  alertSettings?: ApiAlertSettings;
+};
+
+export type ApiSettingsResponse = {
+  alertSettings: ApiAlertSettings;
+};
+
+export type ApiSettingsPatchResponse = {
+  alertSettings: ApiAlertSettings;
+  snapshot?: ApiSnapshot;
+  audit?: ApiSettingsAuditEntry;
+};
+
+export type ApiSettingsAuditListResponse = {
+  entries: ApiSettingsAuditEntry[];
+  total: number;
+  limit: number;
+  offset: number;
 };
 
 export type ApiLoginRequest = {

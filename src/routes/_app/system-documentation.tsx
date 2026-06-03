@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Card } from "@/components/ui/card";
 import { useStore } from "../../lib/inventory-store";
 import { Shield, FileText } from "lucide-react";
@@ -21,7 +21,7 @@ function SystemDocumentation() {
           <h2 className="mt-2 text-lg font-semibold">Documentation — restricted</h2>
           <p className="mt-2 text-sm text-muted-foreground">This documentation page is visible to administrators and managers only.</p>
           <div className="mt-4">
-            <a href="/_app/dashboard" className="text-sm font-medium text-primary">Return to dashboard</a>
+            <Link to="/dashboard" className="text-sm font-medium text-primary">Return to dashboard</Link>
           </div>
         </Card>
       </div>
@@ -105,20 +105,20 @@ function SystemDocumentation() {
         <p className="mt-2 text-sm text-muted-foreground">The core algorithm used by the alert engine is:</p>
         <ul className="ml-4 list-disc text-sm text-muted-foreground mt-3">
           <li>
-            Compute average recent daily demand from recent demand points (typically last 7 days):
-            <div className="mt-1 font-mono text-xs">avg = sum(last_n_days)/n</div>
+            Compute ratio thresholds from product reorder level:
+            <div className="mt-1 font-mono text-xs">lowStockThreshold = reorderLevel * lowStockRatio</div>
+            <div className="mt-1 font-mono text-xs">reorderThreshold = reorderLevel * reorderRatio</div>
+            <div className="mt-1 font-mono text-xs">overstockThreshold = reorderLevel * overstockRatio</div>
           </li>
           <li className="mt-2">
-            Adaptive reorder threshold:
-            <div className="mt-1 font-mono text-xs">adaptiveThreshold = max(reorderLevel, round(avg * 3))</div>
+            Backend clamps values and enforces reorderRatio &lt;= lowStockRatio.
           </li>
           <li className="mt-2">
             Alert rules:
             <div className="ml-4">
-              <div className="text-xs">- If quantity &lt;= adaptiveThreshold → create alert</div>
-              <div className="text-xs">  • type = `low_stock` when quantity &lt;= reorderLevel</div>
-              <div className="text-xs">  • type = `reorder` when reorderLevel &lt; quantity &lt;= adaptiveThreshold</div>
-              <div className="text-xs">- Else if quantity &gt; adaptiveThreshold * 5 and quantity &gt; 50 → `overstock` alert</div>
+              <div className="text-xs">- If enabled and quantity &lt;= reorderThreshold → `reorder` alert</div>
+              <div className="text-xs">- Else if enabled and quantity &lt;= lowStockThreshold → `low_stock` alert</div>
+              <div className="text-xs">- Else if enabled and quantity &gt;= overstockThreshold → `overstock` alert</div>
             </div>
           </li>
         </ul>
@@ -139,5 +139,3 @@ function SystemDocumentation() {
     </div>
   );
 }
-
-export default SystemDocumentation;

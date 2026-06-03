@@ -18,6 +18,11 @@ import {
   type ApiTransactionListResponse,
   type ApiAlertsListResponse,
   type ApiAlertsReadResponse,
+  type ApiAlertSettings,
+  type ApiSettingsPatchResponse,
+  type ApiSettingsResponse,
+  type ApiSettingsAuditListResponse,
+  type ApiSettingsAuditEntry,
 } from "@/lib/inventory-api";
 
 export type Role = "admin" | "manager" | "staff";
@@ -141,11 +146,22 @@ export interface DemandPoint {
   demand: number;
 }
 
+export type AlertSettings = ApiAlertSettings;
+
 export type DailySalesReport = ApiDailySalesReport;
 export type InventorySummaryReport = ApiInventorySummaryReport;
 export type PerformanceReport = ApiPerformanceReport;
 
 export type ProductWrite = Omit<Product, "id">;
+
+const defaultAlertSettings: AlertSettings = {
+  lowStockRatio: 1,
+  reorderRatio: 0.5,
+  overstockRatio: 2,
+  enableLowStock: true,
+  enableReorder: true,
+  enableOverstock: true,
+};
 
 const seedProducts: Product[] = [
   { id: "p1", name: "Wireless Mouse", category: "Electronics", supplier: "TechCorp", quantity: 42, reorderLevel: 20, unitPrice: 18500, color: "Black", code: "WM-001" },
@@ -211,6 +227,8 @@ interface State {
   alerts: Alert[];
   demand: DemandPoint[];
   channels: SalesChannel[];
+  alertSettings: AlertSettings;
+  settingsAudit: ApiSettingsAuditEntry[];
   staticBaseline: { stockouts: number; excess: number };
   simRunning: boolean;
   simIntervalMs: number;
@@ -231,38 +249,77 @@ interface State {
   createChannel: (channel: Omit<SalesChannel, "id">) => Promise<void>;
   updateChannel: (id: string, patch: Partial<Omit<SalesChannel, "id">>) => Promise<void>;
   deleteChannel: (id: string) => Promise<void>;
+  loadAlertSettings: () => Promise<void>;
+  saveAlertSettings: (patch: Partial<AlertSettings>) => Promise<void>;
+  loadSettingsAudit: (limit?: number, offset?: number) => Promise<void>;
   can: (capability: Capability) => boolean;
 }
 
-type Snapshot = Pick<State, "products" | "transactions" | "alerts" | "demand" | "channels" | "staticBaseline">;
+type Snapshot = Pick<State, "products" | "transactions" | "alerts" | "demand" | "channels" | "alertSettings" | "staticBaseline">;
 
 function mergeSnapshot(setState: (partial: Partial<State>) => void, snapshot: Snapshot) {
   setState(snapshot);
 }
 
-function evalAlerts(products: Product[], demand: DemandPoint[]): Alert[] {
+function clampNumber(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function sanitizeAlertSettings(input: Partial<AlertSettings> | null | undefined): AlertSettings {
+  const rawLowStock = Number((input as { lowStockRatio?: number } | undefined)?.lowStockRatio ?? 1);
+  const rawReorder = Number((input as { reorderRatio?: number } | undefined)?.reorderRatio ?? 0.5);
+  const lowStockRatio = clampNumber(rawLowStock, 0, 2);
+  const reorderRatio = clampNumber(rawReorder, 0, 1.5);
+
+  return {
+    lowStockRatio,
+    reorderRatio: Math.min(reorderRatio, lowStockRatio),
+    overstockRatio: clampNumber(Number((input as { overstockRatio?: number } | undefined)?.overstockRatio ?? 2), 1, 5),
+    enableLowStock: Boolean((input as { enableLowStock?: boolean } | undefined)?.enableLowStock ?? true),
+    enableReorder: Boolean((input as { enableReorder?: boolean } | undefined)?.enableReorder ?? true),
+    enableOverstock: Boolean((input as { enableOverstock?: boolean } | undefined)?.enableOverstock ?? true),
+  };
+}
+
+function evalAlerts(products: Product[], demand: DemandPoint[], config: AlertSettings): Alert[] {
   const alerts: Alert[] = [];
   for (const product of products) {
     const recent = demand.filter((entry) => entry.productId === product.id).slice(-7);
     const avg = recent.reduce((sum, entry) => sum + entry.demand, 0) / Math.max(1, recent.length);
-    const adaptiveThreshold = Math.max(product.reorderLevel, Math.round(avg * 3));
-    if (product.quantity <= adaptiveThreshold) {
+    const lowThreshold = Math.round(product.reorderLevel * config.lowStockRatio);
+    const reorderThreshold = Math.round(product.reorderLevel * config.reorderRatio);
+    const overstockThreshold = Math.round(product.reorderLevel * config.overstockRatio);
+
+    if (config.enableReorder && product.quantity <= reorderThreshold) {
       alerts.push({
         id: `a-${product.id}-${Date.now()}`,
         productId: product.id,
         productName: product.name,
-        type: product.quantity <= product.reorderLevel ? "low_stock" : "reorder",
-        message: `${product.name} at ${product.quantity} units. Avg demand ${avg.toFixed(1)}/day. Suggested reorder.`,
+        type: "reorder",
+        message: `${product.name} at ${product.quantity} units. Ratio threshold ${reorderThreshold} (reorderRatio=${config.reorderRatio}).`,
         timestamp: Date.now(),
         read: false,
       });
-    } else if (product.quantity > adaptiveThreshold * 5 && product.quantity > 50) {
+      continue;
+    }
+
+    if (config.enableLowStock && product.quantity <= lowThreshold) {
+      alerts.push({
+        id: `a-${product.id}-${Date.now()}`,
+        productId: product.id,
+        productName: product.name,
+        type: "low_stock",
+        message: `${product.name} at ${product.quantity} units. Low-stock threshold ${lowThreshold}. Avg demand ${avg.toFixed(1)}/day.`,
+        timestamp: Date.now(),
+        read: false,
+      });
+    } else if (config.enableOverstock && product.quantity > overstockThreshold) {
       alerts.push({
         id: `a-${product.id}-${Date.now()}`,
         productId: product.id,
         productName: product.name,
         type: "overstock",
-        message: `${product.name} overstocked at ${product.quantity} units (avg demand ${avg.toFixed(1)}/day).`,
+        message: `${product.name} overstocked at ${product.quantity} units. Overstock threshold ${overstockThreshold}.`,
         timestamp: Date.now(),
         read: false,
       });
@@ -291,6 +348,7 @@ async function syncSnapshot(set: (partial: Partial<State>) => void, get: () => S
   if (resolvedAlerts) nextState.alerts = resolvedAlerts as Alert[];
   if (snapshot?.demand) nextState.demand = snapshot.demand as DemandPoint[];
   if (resolvedChannels) nextState.channels = resolvedChannels as SalesChannel[];
+  if (snapshot?.alertSettings) nextState.alertSettings = sanitizeAlertSettings(snapshot.alertSettings);
   if (snapshot?.staticBaseline) nextState.staticBaseline = snapshot.staticBaseline;
 
   if (Object.keys(nextState).length > 0) {
@@ -310,6 +368,8 @@ export const useStore = create<State>()(
       alerts: [],
       demand: generateDemandHistory(),
       channels: seedChannels,
+      alertSettings: defaultAlertSettings,
+      settingsAudit: [],
       staticBaseline: { stockouts: 18, excess: 24 },
       simRunning: true,
       simIntervalMs: 4000,
@@ -507,6 +567,61 @@ export const useStore = create<State>()(
         }
         await syncSnapshot(set, get);
         toast.success("Channel deleted successfully.");
+      },
+
+      loadAlertSettings: async () => {
+        const payload = await apiJson<ApiSettingsResponse>("/api/settings");
+        if (!payload?.alertSettings) return;
+        const next = sanitizeAlertSettings(payload.alertSettings);
+        const current = get();
+        set({
+          alertSettings: next,
+          alerts: evalAlerts(current.products, current.demand, next),
+        });
+      },
+
+      saveAlertSettings: async (patch) => {
+        const current = get();
+        const next = sanitizeAlertSettings({ ...current.alertSettings, ...patch });
+
+        const response = await apiFetch("/api/settings", {
+          method: "PATCH",
+          body: JSON.stringify(patch),
+        }).catch(() => null);
+
+        if (response?.ok) {
+          const payload = (await response.json().catch(() => null)) as ApiSettingsPatchResponse | null;
+          if (payload?.snapshot) {
+            mergeSnapshot(set, payload.snapshot as Snapshot);
+            if (payload.audit) {
+              set((state) => ({ settingsAudit: [payload.audit as ApiSettingsAuditEntry, ...state.settingsAudit].slice(0, 50) }));
+            }
+          } else {
+            const active = get();
+            set({
+              alertSettings: sanitizeAlertSettings(payload?.alertSettings ?? next),
+              alerts: evalAlerts(active.products, active.demand, next),
+            });
+            if (payload?.audit) {
+              set((state) => ({ settingsAudit: [payload.audit as ApiSettingsAuditEntry, ...state.settingsAudit].slice(0, 50) }));
+            }
+          }
+          toast.success("Alert settings updated.");
+          return;
+        }
+
+        const active = get();
+        set({
+          alertSettings: next,
+          alerts: evalAlerts(active.products, active.demand, next),
+        });
+        toast.success("Alert settings saved locally.");
+      },
+
+      loadSettingsAudit: async (limit = 20, offset = 0) => {
+        const payload = await apiJson<ApiSettingsAuditListResponse>(`/api/settings/audit?limit=${limit}&offset=${offset}`);
+        if (!payload?.entries) return;
+        set({ settingsAudit: payload.entries });
       },
 
       can: (capability) => can(get().user?.role ?? "staff", capability),

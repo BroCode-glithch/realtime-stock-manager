@@ -26,6 +26,7 @@ const titles: Record<string, string> = {
   "/guide": "System Guide",
   "/import": "Import data",
   "/settings": "Settings",
+  "/system-documentation": "System Documentation",
   "/profile": "Profile",
 };
 
