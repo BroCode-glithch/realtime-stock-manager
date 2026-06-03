@@ -91,7 +91,7 @@ function Alerts() {
           </div>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button size="sm" variant="ghost" onClick={markRead} className="gap-1.5">
+              <Button size="sm" variant="ghost" onClick={() => markRead()} className="gap-1.5">
                 <CheckCheck className="h-4 w-4" /> Mark all read
               </Button>
             </TooltipTrigger>
