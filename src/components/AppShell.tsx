@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Package, BellRing, BarChart3, User, Upload, Boxes,
   ArrowDownToLine, ArrowUpFromLine, Receipt, Settings as SettingsIcon, LogOut,
   Search, SunMedium, MoonStar,
-  FileText,
+  FileText, Sparkles,
 } from "lucide-react";
 import { can, useStore, type Capability, type Role } from "../lib/inventory-store";
 import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
@@ -23,6 +23,7 @@ export const navItems = [
   { to: "/system-documentation", label: "System Docs", icon: FileText, capability: "view_system_docs" },
   { to: "/reports", label: "Reports", icon: BarChart3, capability: "view_reports" },
   { to: "/guide", label: "Guide", icon: Boxes, capability: "view_guide" },
+  { to: "/ai-insights", label: "AI Insights", icon: Sparkles, capability: "view_ai_insights" },
   { to: "/import", label: "Import", icon: Upload, capability: "import_products" },
   { to: "/settings", label: "Settings", icon: SettingsIcon, capability: "manage_channels" },
   { to: "/profile", label: "Profile", icon: User, capability: "view_profile" },

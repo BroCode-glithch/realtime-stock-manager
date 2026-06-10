@@ -24,6 +24,7 @@ import { Route as AppImportRouteImport } from './routes/_app/import'
 import { Route as AppGuideRouteImport } from './routes/_app/guide'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppAlertsRouteImport } from './routes/_app/alerts'
+import { Route as AppAiInsightsRouteImport } from './routes/_app/ai-insights'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -99,10 +100,16 @@ const AppAlertsRoute = AppAlertsRouteImport.update({
   path: '/alerts',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAiInsightsRoute = AppAiInsightsRouteImport.update({
+  id: '/ai-insights',
+  path: '/ai-insights',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/ai-insights': typeof AppAiInsightsRoute
   '/alerts': typeof AppAlertsRoute
   '/dashboard': typeof AppDashboardRoute
   '/guide': typeof AppGuideRoute
@@ -119,6 +126,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/ai-insights': typeof AppAiInsightsRoute
   '/alerts': typeof AppAlertsRoute
   '/dashboard': typeof AppDashboardRoute
   '/guide': typeof AppGuideRoute
@@ -137,6 +145,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
+  '/_app/ai-insights': typeof AppAiInsightsRoute
   '/_app/alerts': typeof AppAlertsRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/guide': typeof AppGuideRoute
@@ -155,6 +164,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/ai-insights'
     | '/alerts'
     | '/dashboard'
     | '/guide'
@@ -171,6 +181,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/ai-insights'
     | '/alerts'
     | '/dashboard'
     | '/guide'
@@ -188,6 +199,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_app'
     | '/login'
+    | '/_app/ai-insights'
     | '/_app/alerts'
     | '/_app/dashboard'
     | '/_app/guide'
@@ -315,10 +327,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAlertsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/ai-insights': {
+      id: '/_app/ai-insights'
+      path: '/ai-insights'
+      fullPath: '/ai-insights'
+      preLoaderRoute: typeof AppAiInsightsRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
+  AppAiInsightsRoute: typeof AppAiInsightsRoute
   AppAlertsRoute: typeof AppAlertsRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppGuideRoute: typeof AppGuideRoute
@@ -334,6 +354,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAiInsightsRoute: AppAiInsightsRoute,
   AppAlertsRoute: AppAlertsRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppGuideRoute: AppGuideRoute,
@@ -358,3 +379,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

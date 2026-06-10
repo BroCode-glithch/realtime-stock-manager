@@ -1,0 +1,1908 @@
+openapi: 3.0.3
+info:
+  title: Smart Inventory API
+  version: 1.1.0
+  description: |
+    Stable backend contract for the smart inventory frontend.
+    REST endpoints are served under `/api/*` from `http://localhost:3001` in local development.
+    If your frontend prefers a base URL that includes the API prefix, use `http://localhost:3001/api` and call relative paths such as `/products`.
+servers:
+  - url: http://localhost:3001
+    description: Local development origin
+  - url: https://api.example.com
+    description: Production origin
+tags:
+  - name: Auth
+  - name: System
+  - name: Settings
+  - name: AI Insights
+  - name: Products
+  - name: Transactions
+  - name: Alerts
+  - name: Reports
+  - name: Channels
+  - name: Admin
+  - name: Realtime
+paths:
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate and receive a JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              admin:
+                value:
+                  email: admin@example.com
+                  password: admin123
+      responses:
+        '200':
+          description: JWT login response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+              examples:
+                ok:
+                  value:
+                    token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                    user:
+                      id: u-1
+                      name: Admin User
+                      email: admin@example.com
+                      role: admin
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/health:
+    get:
+      tags: [System]
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: ok
+                timestamp: 1780053300774
+                service: realtime-stock-manager-api
+
+  /api/state:
+    get:
+      tags: [System]
+      summary: Full inventory snapshot
+      description: Frontend sync endpoint returning the complete server-owned snapshot.
+      responses:
+        '200':
+          description: Snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+              examples:
+                snapshot:
+                  value:
+                    products:
+                      - id: p1
+                        name: Wireless Mouse
+                        category: Accessories
+                        supplier: Northwind Supply
+                        quantity: 42
+                        reorderLevel: 15
+                        unitPrice: 24.99
+                        code: WM-001
+                        color: Black
+                        status: healthy
+                    transactions: []
+                    alerts:
+                      - id: a-p3-seed
+                        productId: p3
+                        productName: 27-inch Monitor
+                        type: low_stock
+                        message: 27-inch Monitor is below reorder level.
+                        timestamp: 1780052861309
+                        read: false
+                    demand: []
+                    channels:
+                      - id: c1
+                        name: Online Store (Web)
+                        type: online
+                        enabled: true
+                        notes: Primary ecommerce channel
+                    alertSettings:
+                      lowStockRatio: 1
+                      reorderRatio: 0.5
+                      overstockRatio: 2
+                      enableLowStock: true
+                      enableReorder: true
+                      enableOverstock: true
+                    staticBaseline:
+                      stockouts: 18
+                      excess: 24
+
+  /api/settings:
+    get:
+      tags: [Settings]
+      summary: Read alert settings
+      responses:
+        '200':
+          description: Current alert settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertSettingsResponse'
+    patch:
+      tags: [Settings]
+      summary: Update alert settings
+      description: |
+        Updates system-wide alert thresholds/toggles.
+        Numeric values are validated and clamped server-side.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertSettingsPatchRequest'
+            example:
+              lowStockRatio: 1
+              reorderRatio: 0.4
+              overstockRatio: 2.2
+              enableOverstock: true
+      responses:
+        '200':
+          description: Updated settings and refreshed snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertSettingsUpdateResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /api/settings/audit:
+    get:
+      tags: [Settings]
+      summary: List settings audit history
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Paginated settings audit entries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertSettingsAuditListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/ai/forecast:
+    post:
+      tags: [AI Insights]
+      summary: Forecast demand for next 7/14/30 days per SKU
+      description: |
+        Predict daily demand using exponential moving average (EMA) fallback.
+        Uses 14-day historical demand to generate forecast with 90% confidence bands.
+        Deterministic server-side computation ensures reproducible results.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForecastRequest'
+            example:
+              productIds: ["p1", "p2"]
+              horizonDays: 14
+      responses:
+        '200':
+          description: Forecasts with confidence bands
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForecastResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /api/ai/recommendations:
+    post:
+      tags: [AI Insights]
+      summary: Get reorder recommendations per SKU
+      description: |
+        Generate inventory recommendations (reorder/hold/reduce/promote) with priority assignment.
+        Calculates reorder points, estimated lost sales, and decision reasoning.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecommendationsRequest'
+            example:
+              productIds: ["p1", "p2"]
+              leadTimeDays: 7
+              safetyStockDays: 3
+      responses:
+        '200':
+          description: Recommendations with action and priority
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecommendationsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /api/ai/recommendations/{id}/decision:
+    post:
+      tags: [AI Insights]
+      summary: Record recommendation decision (accept/reject)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecommendationDecisionRequest'
+      responses:
+        '201':
+          description: Decision recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecommendationDecisionRecord'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /api/ai/recommendations/audit:
+    get:
+      tags: [AI Insights]
+      summary: List recommendation decisions audit trail
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Paginated decision records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecommendationAuditListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/ai/alerts/score:
+    post:
+      tags: [AI Insights]
+      summary: Score open alerts by risk level
+      description: |
+        Calculate risk scores (0-100) and priority for inventory alerts.
+        Combines stockout risk, lost sales potential, and urgency.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertScoringRequest'
+            example:
+              alertIds: ["alert1", "alert2"]
+      responses:
+        '200':
+          description: Scored alerts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertScoringResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /api/ai/chat:
+    post:
+      tags: [AI Insights]
+      summary: Chat assistant (non-streaming)
+      description: |
+        Ask questions about inventory status, trends, and recommendations.
+        Stateless: send full message history in each request.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+            example:
+              messages:
+                - role: user
+                  content: What SKUs are at risk of stockout?
+              includeData: ["products", "alerts"]
+      responses:
+        '200':
+          description: Assistant reply with citations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /api/ai/weekly-summary:
+    post:
+      tags: [AI Insights]
+      summary: Generate weekly inventory summary
+      description: |
+        Create narrative report of stockout/overstock risks, sales activity, and recommendations.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeeklySummaryRequest'
+            example:
+              rangeStart: "2026-05-27"
+              rangeEnd: "2026-06-02"
+              format: "markdown"
+      responses:
+        '200':
+          description: Weekly summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeeklySummaryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /api/products:
+    get:
+      tags: [Products]
+      summary: List products
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Search term across name, code, category, and supplier.
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Product list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductListResponse'
+    post:
+      tags: [Products]
+      summary: Create product
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductWrite'
+            example:
+              name: Wireless Mouse
+              category: Electronics
+              supplier: TechCorp
+              quantity: 42
+              reorderLevel: 20
+              unitPrice: 18500
+              code: WM-001
+              color: Black
+      responses:
+        '201':
+          description: Created product
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /api/products/{id}:
+    get:
+      tags: [Products]
+      summary: Get a product
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: Product
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Products]
+      summary: Update product
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductPatch'
+            example:
+              quantity: 25
+              reorderLevel: 12
+      responses:
+        '200':
+          description: Updated product
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+    delete:
+      tags: [Products]
+      summary: Delete product
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/transactions:
+    get:
+      tags: [Transactions]
+      summary: List transactions
+      parameters:
+        - name: productId
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [in, out, adjust]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Transaction list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionListResponse'
+    post:
+      tags: [Transactions]
+      summary: Record stock movement
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionCreate'
+            example:
+              productId: p1
+              qty: 3
+              type: out
+              channelId: c2
+      responses:
+        '200':
+          description: Updated snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /api/alerts:
+    get:
+      tags: [Alerts]
+      summary: List alerts
+      responses:
+        '200':
+          description: Alerts list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertsListResponse'
+
+  /api/alerts/read:
+    post:
+      tags: [Alerts]
+      summary: Mark alerts as read
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertsReadRequest'
+            examples:
+              all:
+                value: {}
+              selected:
+                value:
+                  ids: [a-1, a-2]
+      responses:
+        '200':
+          description: Updated alerts and snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertsReadResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /api/reports/daily-sales:
+    get:
+      tags: [Reports]
+      summary: Daily sales report
+      responses:
+        '200':
+          description: Daily sales metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailySalesReport'
+
+  /api/reports/inventory-summary:
+    get:
+      tags: [Reports]
+      summary: Inventory summary report
+      responses:
+        '200':
+          description: Inventory summary metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventorySummaryReport'
+
+  /api/reports/performance:
+    get:
+      tags: [Reports]
+      summary: Performance report
+      responses:
+        '200':
+          description: Performance metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PerformanceReport'
+
+  /api/channels:
+    get:
+      tags: [Channels]
+      summary: List sales channels
+      responses:
+        '200':
+          description: Channel list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelListResponse'
+    post:
+      tags: [Channels]
+      summary: Create sales channel
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChannelWrite'
+            example:
+              name: Online Store (Web)
+              type: online
+              enabled: true
+              notes: Primary ecommerce channel
+      responses:
+        '201':
+          description: Created channel
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesChannel'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/channels/{id}:
+    patch:
+      tags: [Channels]
+      summary: Update sales channel
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ChannelId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChannelPatch'
+      responses:
+        '200':
+          description: Updated channel
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesChannel'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Channels]
+      summary: Delete sales channel
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ChannelId'
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/tick:
+    post:
+      tags: [Transactions, Realtime]
+      summary: Advance the simulation tick
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TickRequest'
+      responses:
+        '200':
+          description: Updated snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/reset:
+    post:
+      tags: [Admin]
+      summary: Reset to seed dataset
+      description: Testing hook to restore the initial in-memory state.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Reset snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/import:
+    post:
+      tags: [Admin]
+      summary: Bulk import products
+      description: Accepts JSON bulk product uploads for the import page.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportRequest'
+      responses:
+        '200':
+          description: Snapshot after import
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /realtime:
+    get:
+      tags: [Realtime]
+      summary: WebSocket realtime endpoint
+      description: |
+        Upgrade this HTTP endpoint to a WebSocket connection.
+        Authenticate with JWT by sending `{ "event": "auth", "token": "<jwt>" }` or by passing `?token=<jwt>` in the connection URL.
+        The server emits a `snapshot` event after authentication.
+      responses:
+        '101':
+          description: Switching protocols
+      x-websocket:
+        messages:
+          serverToClient:
+            - event: snapshot
+              payload: '#/components/schemas/Snapshot'
+            - event: transaction
+              payload: '#/components/schemas/Transaction'
+            - event: product:update
+              payload: '#/components/schemas/Product'
+            - event: alert
+              payload: '#/components/schemas/Alert'
+            - event: channel:update
+              payload: '#/components/schemas/SalesChannel'
+            - event: tick
+              payload: '#/components/schemas/TickEvent'
+            - event: ping
+              payload: {}
+            - event: pong
+              payload: {}
+          clientToServer:
+            - event: auth
+              payload:
+                token: string
+            - event: subscribe
+              payload:
+                channels: [products, alerts, channels]
+            - event: action
+              payload:
+                type: tick
+                seed: 123
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    ProductId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    ChannelId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid JWT
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Insufficient role
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationFailed:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    User:
+      type: object
+      additionalProperties: false
+      required: [id, name, email, role]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [admin, manager, staff]
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    LoginResponse:
+      type: object
+      additionalProperties: false
+      required: [token, user]
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+    Product:
+      type: object
+      additionalProperties: false
+      required: [id, name, category, supplier, quantity, reorderLevel, unitPrice, code, color, status]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        supplier:
+          type: string
+        quantity:
+          type: integer
+          minimum: 0
+        reorderLevel:
+          type: integer
+          minimum: 0
+        unitPrice:
+          type: number
+          minimum: 0
+        code:
+          type: string
+        color:
+          type: string
+        status:
+          type: string
+          description: Derived inventory state based on quantity and reorder level
+          enum: [healthy, low_stock, reorder, overstock, out_of_stock]
+      example:
+        id: p1
+        name: Wireless Mouse
+        category: Electronics
+        supplier: TechCorp
+        quantity: 42
+        reorderLevel: 20
+        unitPrice: 18500
+        code: WM-001
+        color: Black
+        status: healthy
+    ProductWrite:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+          default: ''
+        supplier:
+          type: string
+          default: ''
+        quantity:
+          type: integer
+          minimum: 0
+          default: 0
+        reorderLevel:
+          type: integer
+          minimum: 0
+          default: 0
+        unitPrice:
+          type: number
+          minimum: 0
+          default: 0
+        code:
+          type: string
+          default: ''
+        color:
+          type: string
+          default: ''
+    ProductPatch:
+      allOf:
+        - $ref: '#/components/schemas/ProductWrite'
+      description: Partial product update. Any subset of fields is allowed.
+    TransactionCreate:
+      type: object
+      additionalProperties: false
+      required: [productId, qty, type]
+      properties:
+        productId:
+          type: string
+        qty:
+          type: integer
+          minimum: 1
+        type:
+          type: string
+          enum: [in, out, adjust]
+        channelId:
+          type: string
+    Transaction:
+      type: object
+      additionalProperties: false
+      required: [id, productId, productName, userId, userName, quantityChanged, type, timestamp]
+      properties:
+        id:
+          type: string
+        productId:
+          type: string
+        productName:
+          type: string
+        userId:
+          type: string
+        userName:
+          type: string
+        quantityChanged:
+          type: integer
+        type:
+          type: string
+          enum: [in, out, adjust]
+        channelId:
+          type: string
+          nullable: true
+        timestamp:
+          type: integer
+          description: Unix timestamp in milliseconds
+      example:
+        id: t-001
+        productId: p1
+        productName: Wireless Mouse
+        userId: u-12
+        userName: Jane Doe
+        quantityChanged: -3
+        type: out
+        channelId: c2
+        timestamp: 1780053300774
+    Alert:
+      type: object
+      additionalProperties: false
+      required: [id, productId, productName, type, message, timestamp, read]
+      properties:
+        id:
+          type: string
+        productId:
+          type: string
+        productName:
+          type: string
+        type:
+          type: string
+          enum: [low_stock, reorder, overstock]
+        message:
+          type: string
+        timestamp:
+          type: integer
+        read:
+          type: boolean
+    DemandPoint:
+      type: object
+      additionalProperties: false
+      required: [productId, day, demand]
+      properties:
+        productId:
+          type: string
+        day:
+          type: string
+        demand:
+          type: integer
+          minimum: 0
+    SalesChannel:
+      type: object
+      additionalProperties: false
+      required: [id, name, type, enabled]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [retail, online, marketplace, mobile]
+        enabled:
+          type: boolean
+        notes:
+          type: string
+          nullable: true
+      example:
+        id: c2
+        name: Online Store (Web)
+        type: online
+        enabled: true
+        notes: Primary ecommerce channel
+    Snapshot:
+      type: object
+      additionalProperties: false
+      required: [products, transactions, alerts, demand, staticBaseline, channels, alertSettings]
+      properties:
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+        transactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transaction'
+        alerts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Alert'
+        demand:
+          type: array
+          items:
+            $ref: '#/components/schemas/DemandPoint'
+        channels:
+          type: array
+          items:
+            $ref: '#/components/schemas/SalesChannel'
+        alertSettings:
+          $ref: '#/components/schemas/AlertSettings'
+        staticBaseline:
+          type: object
+          additionalProperties: false
+          required: [stockouts, excess]
+          properties:
+            stockouts:
+              type: integer
+            excess:
+              type: integer
+      example:
+        products: []
+        transactions: []
+        alerts: []
+        demand: []
+        channels: []
+        staticBaseline:
+          stockouts: 18
+          excess: 24
+    ProductListResponse:
+      type: object
+      additionalProperties: false
+      required: [products, total, limit, offset]
+      properties:
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+    TransactionListResponse:
+      type: object
+      additionalProperties: false
+      required: [transactions, total, limit, offset]
+      properties:
+        transactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transaction'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+    AlertsListResponse:
+      type: object
+      additionalProperties: false
+      required: [alerts]
+      properties:
+        alerts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Alert'
+    AlertsReadRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        ids:
+          type: array
+          items:
+            type: string
+    AlertsReadResponse:
+      type: object
+      additionalProperties: false
+      required: [alerts, snapshot]
+      properties:
+        alerts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Alert'
+        snapshot:
+          $ref: '#/components/schemas/Snapshot'
+    AlertSettings:
+      type: object
+      additionalProperties: false
+      required: [lowStockRatio, reorderRatio, overstockRatio, enableLowStock, enableReorder, enableOverstock]
+      properties:
+        lowStockRatio:
+          type: number
+          minimum: 0
+          maximum: 2
+        reorderRatio:
+          type: number
+          minimum: 0
+          maximum: 1.5
+        overstockRatio:
+          type: number
+          minimum: 1
+          maximum: 5
+        enableLowStock:
+          type: boolean
+        enableReorder:
+          type: boolean
+        enableOverstock:
+          type: boolean
+    AlertSettingsPatchRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        lowStockRatio:
+          type: number
+        reorderRatio:
+          type: number
+        overstockRatio:
+          type: number
+        enableLowStock:
+          type: boolean
+        enableReorder:
+          type: boolean
+        enableOverstock:
+          type: boolean
+    AlertSettingsResponse:
+      type: object
+      additionalProperties: false
+      required: [alertSettings]
+      properties:
+        alertSettings:
+          $ref: '#/components/schemas/AlertSettings'
+    AlertSettingsAuditEntry:
+      type: object
+      additionalProperties: false
+      required: [id, changedAt, changedBy, previous, next]
+      properties:
+        id:
+          type: string
+        changedAt:
+          type: integer
+        changedBy:
+          type: string
+        previous:
+          $ref: '#/components/schemas/AlertSettings'
+        next:
+          $ref: '#/components/schemas/AlertSettings'
+    AlertSettingsUpdateResponse:
+      type: object
+      additionalProperties: false
+      required: [alertSettings, snapshot, audit]
+      properties:
+        alertSettings:
+          $ref: '#/components/schemas/AlertSettings'
+        snapshot:
+          $ref: '#/components/schemas/Snapshot'
+        audit:
+          $ref: '#/components/schemas/AlertSettingsAuditEntry'
+    AlertSettingsAuditListResponse:
+      type: object
+      additionalProperties: false
+      required: [entries, total, limit, offset]
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlertSettingsAuditEntry'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+    ChannelWrite:
+      type: object
+      additionalProperties: false
+      required: [name, type, enabled]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [retail, online, marketplace, mobile]
+        enabled:
+          type: boolean
+        notes:
+          type: string
+          nullable: true
+    ChannelPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [retail, online, marketplace, mobile]
+        enabled:
+          type: boolean
+        notes:
+          type: string
+          nullable: true
+    ChannelListResponse:
+      type: object
+      additionalProperties: false
+      required: [channels]
+      properties:
+        channels:
+          type: array
+          items:
+            $ref: '#/components/schemas/SalesChannel'
+    ImportRequest:
+      type: object
+      additionalProperties: false
+      required: [products]
+      properties:
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductWrite'
+    TickRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        seed:
+          type: integer
+    TickEvent:
+      type: object
+      additionalProperties: false
+      required: [productId, consumed, newQuantity, day]
+      properties:
+        productId:
+          type: string
+        consumed:
+          type: integer
+        newQuantity:
+          type: integer
+        day:
+          type: string
+    DailySalesReport:
+      type: object
+      additionalProperties: false
+      required: [series, totalUnits, totalRevenue]
+      properties:
+        series:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailySalesPoint'
+        totalUnits:
+          type: integer
+        totalRevenue:
+          type: number
+    DailySalesPoint:
+      type: object
+      additionalProperties: false
+      required: [day, unitsSold, revenue]
+      properties:
+        day:
+          type: string
+        unitsSold:
+          type: integer
+        revenue:
+          type: number
+    InventorySummaryReport:
+      type: object
+      additionalProperties: false
+      required: [currentStockValue, stockoutRate, excessStockRate, productMovementTotals]
+      properties:
+        currentStockValue:
+          type: number
+        stockoutRate:
+          type: number
+        excessStockRate:
+          type: number
+        productMovementTotals:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductMovementTotal'
+    ProductMovementTotal:
+      type: object
+      additionalProperties: false
+      required: [productId, productName, unitsIn, unitsOut, net]
+      properties:
+        productId:
+          type: string
+        productName:
+          type: string
+        unitsIn:
+          type: integer
+        unitsOut:
+          type: integer
+        net:
+          type: integer
+    PerformanceReport:
+      type: object
+      additionalProperties: false
+      required: [stockoutRate, excessStockRate, currentStockValue, revenueByProduct, revenueByDay]
+      properties:
+        stockoutRate:
+          type: number
+        excessStockRate:
+          type: number
+        currentStockValue:
+          type: number
+        revenueByProduct:
+          type: array
+          items:
+            $ref: '#/components/schemas/RevenueByProductPoint'
+        revenueByDay:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailySalesPoint'
+    RevenueByProductPoint:
+      type: object
+      additionalProperties: false
+      required: [productId, productName, revenue]
+      properties:
+        productId:
+          type: string
+        productName:
+          type: string
+        revenue:
+          type: number
+    ForecastRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        productIds:
+          type: array
+          items:
+            type: string
+          maxItems: 200
+          description: Product IDs to forecast; omit for all products
+        horizonDays:
+          type: integer
+          enum: [7, 14, 30]
+          default: 14
+          description: Forecast horizon in days
+    ForecastPoint:
+      type: object
+      additionalProperties: false
+      required: [day, predicted, lower, upper]
+      properties:
+        day:
+          type: string
+          format: date
+          description: ISO 8601 date
+        predicted:
+          type: integer
+          description: Point forecast (rounded)
+        lower:
+          type: integer
+          description: 90% confidence interval lower bound
+        upper:
+          type: integer
+          description: 90% confidence interval upper bound
+    Forecast:
+      type: object
+      additionalProperties: false
+      required: [productId, horizonDays, points, meanDailyDemand, confidence, reasons, source]
+      properties:
+        productId:
+          type: string
+        horizonDays:
+          type: integer
+          enum: [7, 14, 30]
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/ForecastPoint'
+        meanDailyDemand:
+          type: number
+          description: Average daily demand over last 14 days
+        confidence:
+          type: string
+          enum: [high, medium, low]
+        reasons:
+          type: array
+          items:
+            type: string
+          description: Human-readable factors driving the forecast
+        source:
+          type: string
+          enum: [fallback, ai]
+          description: fallback = EMA rule-based; ai = Lovable AI Gateway
+    ForecastResponse:
+      type: object
+      additionalProperties: false
+      required: [forecasts, generatedAt, source]
+      properties:
+        forecasts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Forecast'
+        generatedAt:
+          type: integer
+          format: int64
+          description: Unix timestamp in milliseconds
+        source:
+          type: string
+          enum: [fallback, ai]
+    RecommendationsRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        productIds:
+          type: array
+          items:
+            type: string
+          maxItems: 200
+        leadTimeDays:
+          type: integer
+          minimum: 0
+          default: 7
+        safetyStockDays:
+          type: integer
+          minimum: 0
+          default: 3
+    Recommendation:
+      type: object
+      additionalProperties: false
+      required: [productId, action, priority, reorderPoint, estimatedLostSalesNaira, reasons, source]
+      properties:
+        productId:
+          type: string
+        action:
+          type: string
+          enum: [reorder, hold, reduce, promote]
+        priority:
+          type: string
+          enum: [critical, high, medium, low]
+        reorderPoint:
+          type: number
+        estimatedLostSalesNaira:
+          type: number
+        reasons:
+          type: array
+          items:
+            type: string
+        source:
+          type: string
+          enum: [fallback, ai]
+    RecommendationsResponse:
+      type: object
+      additionalProperties: false
+      required: [recommendations, generatedAt, source]
+      properties:
+        recommendations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Recommendation'
+        generatedAt:
+          type: integer
+          format: int64
+        source:
+          type: string
+          enum: [fallback, ai]
+    RecommendationDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [accepted, rejected]
+        note:
+          type: string
+          default: ""
+    RecommendationDecisionRecord:
+      type: object
+      additionalProperties: false
+      required: [id, recommendationId, decision, note, decidedAt, decidedBy]
+      properties:
+        id:
+          type: string
+        recommendationId:
+          type: string
+        decision:
+          type: string
+          enum: [accepted, rejected]
+        note:
+          type: string
+        decidedAt:
+          type: integer
+          format: int64
+        decidedBy:
+          type: string
+    RecommendationAuditListResponse:
+      type: object
+      additionalProperties: false
+      required: [entries, total, limit, offset]
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecommendationDecisionRecord'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+    AlertScoringRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        alertIds:
+          type: array
+          items:
+            type: string
+          maxItems: 500
+    SmartAlert:
+      type: object
+      additionalProperties: false
+      required: [id, productId, type, riskScore, horizonDays, message, reasons, priority, source]
+      properties:
+        id:
+          type: string
+        productId:
+          type: string
+        type:
+          type: string
+          enum: [low_stock, reorder, overstock]
+        riskScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+        horizonDays:
+          type: integer
+        message:
+          type: string
+        reasons:
+          type: array
+          items:
+            type: string
+        priority:
+          type: string
+          enum: [critical, high, medium, low]
+        source:
+          type: string
+          enum: [fallback, ai]
+    AlertScoringResponse:
+      type: object
+      additionalProperties: false
+      required: [alerts, generatedAt, source]
+      properties:
+        alerts:
+          type: array
+          items:
+            $ref: '#/components/schemas/SmartAlert'
+        generatedAt:
+          type: integer
+          format: int64
+        source:
+          type: string
+          enum: [fallback, ai]
+    ChatMessage:
+      type: object
+      additionalProperties: false
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+    ChatRequest:
+      type: object
+      additionalProperties: false
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+          minItems: 1
+        includeData:
+          type: array
+          items:
+            type: string
+            enum: [products, alerts, transactions]
+          default: []
+    Citation:
+      type: object
+      additionalProperties: false
+      required: [productId, field, value]
+      properties:
+        productId:
+          type: string
+        field:
+          type: string
+        value:
+          type: string
+    ChatResponse:
+      type: object
+      additionalProperties: false
+      required: [reply, citations, source, generatedAt]
+      properties:
+        reply:
+          type: string
+          description: Markdown-formatted response
+        citations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Citation'
+        source:
+          type: string
+          enum: [fallback, ai]
+        generatedAt:
+          type: integer
+          format: int64
+    WeeklySummaryRequest:
+      type: object
+      additionalProperties: false
+      required: [rangeStart, rangeEnd]
+      properties:
+        rangeStart:
+          type: string
+          format: date
+        rangeEnd:
+          type: string
+          format: date
+        format:
+          type: string
+          enum: [json, markdown]
+          default: json
+    WeeklySummaryRisk:
+      type: object
+      additionalProperties: false
+      required: [productId, productName, quantity]
+      properties:
+        productId:
+          type: string
+        productName:
+          type: string
+        quantity:
+          type: integer
+    WeeklySummarySummary:
+      type: object
+      additionalProperties: false
+      required: [stockoutRisks, overstockRisks, salesTrend, recommendedActions]
+      properties:
+        stockoutRisks:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeeklySummaryRisk'
+        overstockRisks:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeeklySummaryRisk'
+        salesTrend:
+          type: string
+        recommendedActions:
+          type: array
+          items:
+            type: string
+    WeeklySummaryResponse:
+      type: object
+      additionalProperties: false
+      required: [summary, narrative, source, generatedAt, format]
+      properties:
+        summary:
+          $ref: '#/components/schemas/WeeklySummarySummary'
+        narrative:
+          type: string
+          description: Markdown-formatted narrative
+        source:
+          type: string
+          enum: [fallback, ai]
+        generatedAt:
+          type: integer
+          format: int64
+        format:
+          type: string
+          enum: [json, markdown]
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [status, timestamp, service]
+      properties:
+        status:
+          type: string
+        timestamp:
+          type: integer
+        service:
+          type: string
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: string
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+    ValidationErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error, details]
+      properties:
+        error:
+          type: string
+        details:
+          type: array
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field:
+                type: string
+              message:
+                type: string

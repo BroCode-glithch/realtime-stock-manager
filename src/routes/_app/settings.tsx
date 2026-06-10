@@ -130,7 +130,7 @@ function Settings() {
               onChange={(e) => setLowStockRatio(e.target.value)}
               disabled={!canManage}
             />
-            <p className="text-xs text-muted-foreground">Threshold: quantity &lt;= reorderLevel * lowStockRatio.</p>
+            <p className="text-xs text-muted-foreground">Threshold: quantity {'<='} reorderLevel * lowStockRatio.</p>
           </div>
 
           <div className="space-y-1.5">
@@ -144,7 +144,7 @@ function Settings() {
               onChange={(e) => setReorderRatio(e.target.value)}
               disabled={!canManage}
             />
-            <p className="text-xs text-muted-foreground">Threshold: quantity &lt;= reorderLevel * reorderRatio (capped to lowStockRatio).</p>
+            <p className="text-xs text-muted-foreground">Threshold: quantity {'<='} reorderLevel * reorderRatio (capped to lowStockRatio).</p>
           </div>
 
           <div className="space-y-1.5">
@@ -158,7 +158,7 @@ function Settings() {
               onChange={(e) => setOverstockRatio(e.target.value)}
               disabled={!canManage}
             />
-            <p className="text-xs text-muted-foreground">Threshold: quantity &gt;= reorderLevel * overstockRatio.</p>
+            <p className="text-xs text-muted-foreground">Threshold: quantity {'>='} reorderLevel * overstockRatio.</p>
           </div>
         </div>
 

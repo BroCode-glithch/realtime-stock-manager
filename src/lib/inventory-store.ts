@@ -42,6 +42,7 @@ export type Capability =
   | "view_guide"
   | "import_products"
   | "manage_channels"
+  | "view_ai_insights"
   | "reset_data"
   | "view_profile";
 
@@ -61,6 +62,7 @@ const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
     "view_guide",
     "import_products",
     "manage_channels",
+    "view_ai_insights",
     "reset_data",
     "view_profile",
   ],
@@ -78,6 +80,7 @@ const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
     "view_guide",
     "import_products",
     "manage_channels",
+    "view_ai_insights",
     "view_profile",
   ],
   staff: [

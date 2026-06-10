@@ -182,6 +182,18 @@ export type ApiErrorResponse = {
   details?: Array<{ field?: string; message?: string }>;
 };
 
+export type ApiChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+export type ApiAiChatResponse = {
+  reply: string;
+  citations: Array<{ productId: string; field: string; value: string | number | boolean | null }>;
+  source: "ai" | "fallback";
+  generatedAt: number;
+};
+
 const DEFAULT_API_BASE_URL = "http://localhost:3001";
 
 export function getApiBaseUrl() {
