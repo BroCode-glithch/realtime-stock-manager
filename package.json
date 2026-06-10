@@ -7,9 +7,9 @@
     "dev": "vite dev",
     "api": "node server/index.mjs",
     "api:dev": "node --watch server/index.mjs",
-    "build": "vite build",
+    "build": "tanstack build",
     "build:dev": "vite build --mode development",
-    "preview": "vite preview",
+    "preview": "tanstack preview",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
